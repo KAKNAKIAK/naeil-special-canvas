@@ -11,6 +11,14 @@ GitHub Releases에서 `내일스패셜-메이킹-스튜디오-Setup-<버전>.exe
 - GitHub Release 게시: `publish-github-release.bat`
 - 코드 서명이 없는 사내용 빌드이므로 처음 실행할 때 Windows SmartScreen 경고가 표시될 수 있습니다.
 
+## 다음 버전 배포
+
+1. `desktop/package.json`의 `version`을 현재보다 높은 버전으로 올립니다. 예: `1.0.1` → `1.0.2`
+2. 변경한 소스를 GitHub `main` 브랜치에 push합니다.
+3. `publish-github-release.bat`를 실행합니다.
+
+배치 파일은 GitHub CLI 로그인 정보를 사용해 설치 파일, `.blockmap`, `latest.yml`을 새 GitHub Release에 게시합니다. 기존 설치 사용자는 다음 앱 실행 시 새 버전을 확인합니다.
+
 ## 실행
 
 `run-naeil-special-canvas.bat`를 더블클릭합니다. 첫 실행에서만 실행 라이브러리를 `%LOCALAPPDATA%\NaeilSpecialCanvasRuntime`에 설치하며 이후 `http://127.0.0.1:4173`이 열립니다. 실행할 때 최신 소스를 로컬 작업 공간으로 복사하므로 Google Drive 동기화 오류와 불필요한 수만 개 파일 생성을 피합니다.
