@@ -1,0 +1,142 @@
+{
+  "schemaVersion": "2.0.0",
+  "catalogVersion": "1.0.0",
+  "id": "00178eec-a2af-4b18-834b-b290955e39e2",
+  "name": "괌 두짓타니 4박 5일 가족여행",
+  "layout": "hotel-sales",
+  "category": "금까기",
+  "deliveryStage": "internal-draft",
+  "updatedAt": "2026-07-22T10:37:01.201193Z",
+  "page": {
+    "title": "괌 두짓타니 4박 5일 가족여행",
+    "subtitle": "가족 맞춤 휴양 4박 5일",
+    "destination": "괌",
+    "internalMemo": "AI 자동작성 초안"
+  },
+  "sections": [
+    {
+      "id": "1310de09-6240-497f-8eb3-8ce4f24121a2",
+      "type": "text",
+      "eyebrow": "FAMILY STAY",
+      "title": "괌에서 만나는 여유로운 가족 휴양",
+      "body": "호텔, 이동, 일정의 핵심 정보를 한눈에 확인하세요.",
+      "items": [],
+      "mediaIds": [],
+      "mediaLayout": "auto",
+      "contentLayout": "text-top",
+      "layoutBoxes": [],
+      "note": "",
+      "background": "white"
+    },
+    {
+      "id": "d1d7b7b7-884a-4eba-bf54-9c8f0f3229cb",
+      "type": "image",
+      "eyebrow": "FAMILY STAY",
+      "title": "두짓타니 괌 리조트",
+      "body": "객실과 부대시설의 분위기를 소개합니다.",
+      "items": [],
+      "mediaIds": [
+        "hotel-exterior"
+      ],
+      "mediaLayout": "auto",
+      "contentLayout": "text-top",
+      "layoutBoxes": [],
+      "note": "",
+      "background": "white"
+    },
+    {
+      "id": "444e6929-6bd8-404e-a422-acce719037f4",
+      "type": "list",
+      "eyebrow": "FAMILY STAY",
+      "title": "여행 포인트",
+      "body": "호텔, 이동, 일정의 핵심 정보를 한눈에 확인하세요.",
+      "items": [
+        "가족 고객 중심의 숙소 선택",
+        "일정에 맞춘 이동 동선",
+        "현지 체험은 요청에 따라 조정"
+      ],
+      "mediaIds": [],
+      "mediaLayout": "auto",
+      "contentLayout": "text-top",
+      "layoutBoxes": [],
+      "note": "",
+      "background": "white",
+      "listStyle": "list"
+    },
+    {
+      "id": "b71bc40c-32f3-4f73-9e5e-bfef5b9c972c",
+      "type": "timeline",
+      "eyebrow": "FAMILY STAY",
+      "title": "간단 일정",
+      "body": "호텔, 이동, 일정의 핵심 정보를 한눈에 확인하세요.",
+      "items": [
+        "15:00 | 호텔 체크인 | 객실 배정 후 휴식",
+        "18:00 | 자유 일정 | 가족별 저녁 시간"
+      ],
+      "mediaIds": [
+        "",
+        "hotel-exterior",
+        ""
+      ],
+      "mediaLayout": "auto",
+      "contentLayout": "text-top",
+      "layoutBoxes": [],
+      "note": "",
+      "background": "white",
+      "timelineDayStarts": [
+        0
+      ],
+      "timelineHeroVisible": true
+    }
+  ],
+  "assets": [
+    {
+      "id": "hotel-exterior",
+      "name": "dusit-thani-guam.jpg",
+      "src": "https://example.com/dusit-thani-guam.jpg",
+      "provider": "provided",
+      "sourceId": "",
+      "assetStage": "reference",
+      "usageScope": "내일스패셜 상세페이지",
+      "rightsStatus": "unknown",
+      "qualityGrade": "B",
+      "approval": "pending",
+      "evidence": "",
+      "alt": "두짓타니 괌 리조트 외관",
+      "download": {
+        "status": "pending",
+        "source": "https://example.com/dusit-thani-guam.jpg"
+      }
+    }
+  ],
+  "generator": {
+    "name": "naeil-special-canvas-writer",
+    "version": "1.0.0",
+    "contractHash": "43cfdb68157d1a7ad3c4b121f019e241e7d5d3b514d9ee90af742fa770ec25d6",
+    "generatedAt": "2026-07-22T10:37:01.201193Z"
+  },
+  "extensions": {
+    "approvedBrief": {
+      "approvedAt": "2026-07-22T19:30:00+09:00",
+      "confirmedFacts": [
+        {
+          "field": "숙박",
+          "value": "4박",
+          "source": "사용자 제공 일정표"
+        }
+      ],
+      "needsReview": [
+        {
+          "field": "항공편",
+          "reason": "출발일에 따라 변경 가능"
+        }
+      ],
+      "imageDirections": [
+        {
+          "assetId": "hotel-exterior",
+          "role": "리조트 외관 대표 이미지"
+        }
+      ]
+    }
+  }
+}

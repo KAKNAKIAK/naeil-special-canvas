@@ -1,0 +1,20 @@
+{
+  "name": "naeil-special-canvas-runtime",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "html-to-image": "^1.11.13",
+    "idb-keyval": "^6.2.2",
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7",
+    "vitest": "^2.1.8",
+    "yaml": "^2.6.1"
+  }
+}

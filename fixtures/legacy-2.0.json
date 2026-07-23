@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "2.0",
+  "id": "fixture-legacy-2",
+  "name": "2.0 저장본",
+  "layout": "hotel-sales",
+  "category": "우리만",
+  "deliveryStage": "internal-draft",
+  "updatedAt": "2026-07-22T00:00:00.000Z",
+  "page": { "title": "", "subtitle": "", "destination": "", "internalMemo": "" },
+  "sections": [{ "id": "legacy-text", "type": "text", "eyebrow": "Category Label", "title": "제목", "body": "본문", "items": [], "mediaIds": [], "mediaLayout": "auto", "contentLayout": "text-top", "note": "", "background": "white", "futureSectionField": "보존" }],
+  "assets": [],
+  "futureRootField": { "keep": true }
+}

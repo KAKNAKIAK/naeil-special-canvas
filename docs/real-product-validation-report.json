@@ -1,0 +1,104 @@
+{
+  "valid": true,
+  "cases": [
+    {
+      "id": "gold-danang-hoian",
+      "category": "금까기",
+      "valid": true,
+      "sections": 4,
+      "assets": 1,
+      "warnings": [
+        "확인 필요: {'field': '상품 조건', 'reason': '레퍼런스 이미지에는 가격·일정·포함 조건의 원문이 없으므로 확인 필요'}"
+      ],
+      "errors": []
+    },
+    {
+      "id": "gold-kayumanis",
+      "category": "금까기",
+      "valid": true,
+      "sections": 4,
+      "assets": 1,
+      "warnings": [
+        "확인 필요: {'field': '상품 조건', 'reason': '레퍼런스 이미지에는 가격·일정·포함 조건의 원문이 없으므로 확인 필요'}"
+      ],
+      "errors": []
+    },
+    {
+      "id": "gold-ritz-carlton",
+      "category": "금까기",
+      "valid": true,
+      "sections": 4,
+      "assets": 1,
+      "warnings": [
+        "확인 필요: {'field': '상품 조건', 'reason': '레퍼런스 이미지에는 가격·일정·포함 조건의 원문이 없으므로 확인 필요'}"
+      ],
+      "errors": []
+    },
+    {
+      "id": "uri-beijing",
+      "category": "우리만",
+      "valid": true,
+      "sections": 4,
+      "assets": 1,
+      "warnings": [
+        "확인 필요: {'field': '상품 조건', 'reason': '레퍼런스 이미지에는 가격·일정·포함 조건의 원문이 없으므로 확인 필요'}"
+      ],
+      "errors": []
+    },
+    {
+      "id": "uri-qingdao",
+      "category": "우리만",
+      "valid": true,
+      "sections": 4,
+      "assets": 1,
+      "warnings": [
+        "확인 필요: {'field': '상품 조건', 'reason': '레퍼런스 이미지에는 가격·일정·포함 조건의 원문이 없으므로 확인 필요'}"
+      ],
+      "errors": []
+    },
+    {
+      "id": "special-mezz32064",
+      "category": "특별한",
+      "valid": true,
+      "sections": 4,
+      "assets": 1,
+      "warnings": [
+        "확인 필요: {'field': '상품 조건', 'reason': '레퍼런스 이미지에는 가격·일정·포함 조건의 원문이 없으므로 확인 필요'}"
+      ],
+      "errors": []
+    },
+    {
+      "id": "special-yellowstone",
+      "category": "특별한",
+      "valid": true,
+      "sections": 4,
+      "assets": 1,
+      "warnings": [
+        "확인 필요: {'field': '상품 조건', 'reason': '레퍼런스 이미지에는 가격·일정·포함 조건의 원문이 없으므로 확인 필요'}"
+      ],
+      "errors": []
+    },
+    {
+      "id": "golf-okayama",
+      "category": "골프",
+      "valid": true,
+      "sections": 4,
+      "assets": 1,
+      "warnings": [
+        "확인 필요: {'field': '상품 조건', 'reason': '레퍼런스 이미지에는 가격·일정·포함 조건의 원문이 없으므로 확인 필요'}"
+      ],
+      "errors": []
+    },
+    {
+      "id": "golf-okinawa",
+      "category": "골프",
+      "valid": true,
+      "sections": 4,
+      "assets": 1,
+      "warnings": [
+        "확인 필요: {'field': '상품 조건', 'reason': '레퍼런스 이미지에는 가격·일정·포함 조건의 원문이 없으므로 확인 필요'}"
+      ],
+      "errors": []
+    }
+  ]
+}

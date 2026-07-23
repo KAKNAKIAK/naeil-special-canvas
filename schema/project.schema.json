@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://naeiltour.local/naeil-special-canvas/project.schema.json",
+  "title": "Naeil Special Canvas Project",
+  "type": "object",
+  "required": ["schemaVersion", "id", "name", "layout", "category", "deliveryStage", "updatedAt", "page", "sections", "assets"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "2.1.0" },
+    "catalogVersion": { "type": "string", "const": "1.0.0" },
+    "id": { "type": "string", "minLength": 1 },
+    "name": { "type": "string" },
+    "layout": { "type": "string", "enum": ["destination-catalog", "hotel-detail", "hotel-sales", "theme-package", "journey-longform", "golf-standard", "offer-promotion"] },
+    "category": { "type": "string", "enum": ["금까기", "우리만", "특별한", "골프"] },
+    "deliveryStage": { "type": "string", "enum": ["internal-draft", "customer-final"] },
+    "updatedAt": { "type": "string" },
+    "page": {
+      "type": "object",
+      "required": ["title", "subtitle", "destination", "internalMemo"],
+      "properties": {
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "destination": { "type": "string" },
+        "internalMemo": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "campaign": { "type": "object", "additionalProperties": true },
+    "generator": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": { "name": { "type": "string" }, "version": { "type": "string" }, "contractHash": { "type": "string" }, "generatedAt": { "type": "string" } },
+      "additionalProperties": true
+    },
+    "migrationLog": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+    "briefWorkspace": { "$ref": "#/$defs/briefWorkspace" },
+    "extensions": { "type": "object", "additionalProperties": true },
+    "sections": { "type": "array", "items": { "$ref": "#/$defs/section" } },
+    "contentGroups": { "type": "array", "items": { "$ref": "#/$defs/contentGroup" } },
+    "assets": { "type": "array", "items": { "$ref": "#/$defs/asset" } }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "section": {
+      "type": "object",
+      "required": ["id", "type", "eyebrow", "title", "body", "items", "mediaIds", "mediaLayout", "contentLayout"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["text", "image", "list", "table", "icon-card", "timeline", "menu-zigzag", "offer", "caption-grid"] },
+        "eyebrow": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "items": { "type": "array", "items": { "type": "string" } },
+        "mediaIds": { "type": "array", "items": { "type": "string" } },
+        "mediaLayout": { "type": "string", "enum": ["auto", "mosaic-left", "mosaic-right", "equal", "stack", "grid-2", "grid-3", "custom"] },
+        "contentLayout": { "type": "string", "enum": ["text-top", "media-top", "media-left", "media-right"] },
+        "layoutBoxes": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
+      },
+      "additionalProperties": true
+    },
+    "contentGroup": {
+      "type": "object",
+      "required": ["id", "name", "sectionIds"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string" },
+        "sectionIds": { "type": "array", "minItems": 2, "items": { "type": "string" } },
+        "collapsed": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "asset": {
+      "type": "object",
+      "required": ["id", "name", "src", "provider", "assetStage", "rightsStatus", "qualityGrade", "approval", "alt"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "src": { "type": "string" },
+        "provider": { "type": "string" },
+        "assetStage": { "type": "string" },
+        "rightsStatus": { "type": "string" },
+        "qualityGrade": { "type": "string" },
+        "approval": { "type": "string" },
+        "alt": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "briefWorkspace": {
+      "type": "object",
+      "required": ["rawText", "sourceUrls", "facts", "selectedImageIds"],
+      "properties": {
+        "rawText": { "type": "string" },
+        "sourceUrls": { "type": "array", "items": { "type": "string" } },
+        "selectedImageIds": { "type": "array", "items": { "type": "string" } },
+        "facts": { "type": "array", "items": { "type": "object", "required": ["id", "field", "value", "source", "status"], "additionalProperties": true } },
+        "brief": { "$ref": "#/$defs/brief" }
+      },
+      "additionalProperties": true
+    },
+    "brief": {
+      "type": "object",
+      "required": ["status", "approvedAt", "updatedAt", "product", "common", "blockOrder", "blocks", "confirmedFacts", "needsReview", "imageDirections"],
+      "properties": {
+        "status": { "type": "string", "enum": ["draft", "approved"] },
+        "approvedAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "product": { "type": "object", "additionalProperties": true },
+        "common": { "type": "object", "additionalProperties": true },
+        "blockOrder": { "type": "array", "items": { "type": "string" } },
+        "blocks": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+        "confirmedFacts": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+        "needsReview": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+        "imageDirections": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
+      },
+      "additionalProperties": true
+    }
+  }
+}

@@ -1,0 +1,11 @@
+[
+  { "id": "gold-danang-hoian", "category": "금까기", "name": "2AKE80 다낭·호이안", "layout": "hotel-sales", "sourcePath": "C:/Users/naeiltour0001/Desktop/이벤트모음/임시작업폴더/01_금까기_60개/01_휴양_리조트/001_2AKE80_250702_NS_DanangHoian.jpg", "kind": "hotel" },
+  { "id": "gold-kayumanis", "category": "금까기", "name": "2AKE14 카유마니스", "layout": "hotel-sales", "sourcePath": "C:/Users/naeiltour0001/Desktop/이벤트모음/임시작업폴더/01_금까기_60개/01_휴양_리조트/005_2AKE14_240119_NS_Kayumanis.jpg", "kind": "hotel" },
+  { "id": "gold-ritz-carlton", "category": "금까기", "name": "2AZZ4981 리츠칼튼", "layout": "hotel-sales", "sourcePath": "C:/Users/naeiltour0001/Desktop/이벤트모음/임시작업폴더/01_금까기_60개/01_휴양_리조트/012_2AZZ4981_241031_NS_RitzCarlton.jpg", "kind": "hotel" },
+  { "id": "uri-beijing", "category": "우리만", "name": "3CZZ12202 베이징", "layout": "theme-package", "sourcePath": "C:/Users/naeiltour0001/Desktop/이벤트모음/임시작업폴더/02_우리만_20개/01_휴양_리조트/001_3CZZ12202_250613_NS_BeijingFood.jpg", "kind": "region" },
+  { "id": "uri-qingdao", "category": "우리만", "name": "3CCA2 칭다오", "layout": "theme-package", "sourcePath": "C:/Users/naeiltour0001/Desktop/이벤트모음/임시작업폴더/02_우리만_20개/01_휴양_리조트/006_3CCA2_250312_NS_QingdaoSpring.jpg", "kind": "region" },
+  { "id": "special-mezz32064", "category": "특별한", "name": "MEZZ32064 특별한 여행", "layout": "journey-longform", "sourcePath": "C:/Users/naeiltour0001/Desktop/이벤트모음/임시작업폴더/03_특별한_10개/03_자연_경관/002_MEOZ12_with_naeils_MEOZ12.jpg", "kind": "itinerary" },
+  { "id": "special-yellowstone", "category": "특별한", "name": "MUKE1 옐로스톤", "layout": "journey-longform", "sourcePath": "C:/Users/naeiltour0001/Desktop/이벤트모음/임시작업폴더/03_특별한_10개/03_자연_경관/004_MUKE1_240419_NS_YelloStone_07.jpg", "kind": "itinerary" },
+  { "id": "golf-okayama", "category": "골프", "name": "FJKE1 오카야마 골프", "layout": "golf-standard", "sourcePath": "C:/Users/naeiltour0001/Desktop/이벤트모음/임시작업폴더/04_골프_15개/01_일본_골프/001_FJKE1_251028_NS_OkayamaGolf.jpg", "kind": "golf" },
+  { "id": "golf-okinawa", "category": "골프", "name": "FJZZ31349 오키나와 골프", "layout": "golf-standard", "sourcePath": "C:/Users/naeiltour0001/Desktop/이벤트모음/임시작업폴더/04_골프_15개/01_일본_골프/005_FJZZ31349_251105_NS_OkinawaiGolf.jpg", "kind": "golf" }
+]

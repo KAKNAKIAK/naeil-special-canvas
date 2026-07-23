@@ -1,0 +1,84 @@
+{
+  "catalogVersion": "1.0.0",
+  "blocks": [
+    {
+      "type": "text",
+      "label": "텍스트",
+      "generatable": true,
+      "requiredFields": ["eyebrow", "title", "body"],
+      "itemRule": { "minimum": 0, "maximum": 0 },
+      "imageSlots": 0,
+      "allowedContentLayouts": ["text-top", "media-top", "media-left", "media-right"]
+    },
+    {
+      "type": "image",
+      "label": "이미지",
+      "generatable": true,
+      "requiredFields": ["eyebrow", "title", "body", "layoutBoxes"],
+      "itemRule": { "minimum": 0, "maximum": 0 },
+      "imageSlots": "variable",
+      "allowedContentLayouts": ["text-top", "media-top", "media-left", "media-right"]
+    },
+    {
+      "type": "list",
+      "label": "목록",
+      "generatable": true,
+      "requiredFields": ["eyebrow", "title", "body", "items"],
+      "itemRule": { "minimum": 1, "maximum": 12 },
+      "imageSlots": 0,
+      "variants": ["list", "offer"]
+    },
+    {
+      "type": "icon-card",
+      "label": "아이콘 카드",
+      "generatable": true,
+      "requiredFields": ["eyebrow", "title", "body", "iconCards"],
+      "itemRule": { "minimum": 1, "maximum": 6 },
+      "imageSlots": 0
+    },
+    {
+      "type": "table",
+      "label": "간략 일정표",
+      "generatable": true,
+      "requiredFields": ["eyebrow", "title", "body", "tableHeaders", "tableRows"],
+      "itemRule": { "minimum": 1, "maximum": 20 },
+      "imageSlots": 0
+    },
+    {
+      "type": "timeline",
+      "label": "상세 일정표",
+      "generatable": true,
+      "requiredFields": ["eyebrow", "title", "body", "items", "timelineDayStarts", "mediaIds"],
+      "itemRule": { "minimum": 1, "maximum": 30 },
+      "imageSlots": "hero-plus-per-item"
+    },
+    {
+      "type": "menu-zigzag",
+      "label": "이미지·설명 카드",
+      "generatable": true,
+      "requiredFields": ["eyebrow", "title", "body", "items", "mediaIds"],
+      "itemRule": { "minimum": 1, "maximum": 12 },
+      "imageSlots": "per-item"
+    },
+    {
+      "type": "offer",
+      "label": "가격·특전",
+      "generatable": false,
+      "legacy": true,
+      "replacement": { "type": "list", "variant": "offer" },
+      "requiredFields": ["eyebrow", "title", "body", "items"],
+      "itemRule": { "minimum": 1, "maximum": 12 },
+      "imageSlots": 0
+    },
+    {
+      "type": "caption-grid",
+      "label": "캡션 이미지 그리드",
+      "generatable": false,
+      "legacy": true,
+      "replacement": { "type": "image" },
+      "requiredFields": ["eyebrow", "title", "body", "items", "mediaIds"],
+      "itemRule": { "minimum": 1, "maximum": 12 },
+      "imageSlots": "per-item"
+    }
+  ]
+}

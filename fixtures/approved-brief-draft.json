@@ -1,0 +1,11 @@
+{
+  "status": "draft",
+  "approvedAt": "",
+  "product": { "name": "검토 중 상품", "category": "금까기", "layout": "hotel-sales" },
+  "common": { "categoryLabel": "DRAFT", "title": "검토 중", "body": "컴펌 전입니다." },
+  "blockOrder": ["text"],
+  "blocks": [{ "type": "text" }],
+  "confirmedFacts": [],
+  "needsReview": [],
+  "imageDirections": []
+}

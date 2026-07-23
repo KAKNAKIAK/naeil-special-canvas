@@ -1,0 +1,11 @@
+{
+  "id": "fixture-unversioned",
+  "name": "무버전 저장본",
+  "layout": "hotel-sales",
+  "category": "특별한",
+  "deliveryStage": "internal-draft",
+  "updatedAt": "2026-07-22T00:00:00.000Z",
+  "page": { "title": "", "subtitle": "", "destination": "", "internalMemo": "" },
+  "sections": [{ "id": "legacy-list", "type": "list", "eyebrow": "Category Label", "title": "제목", "body": "본문", "items": ["내용"], "mediaIds": [], "mediaLayout": "auto", "contentLayout": "text-top", "note": "", "background": "white" }],
+  "assets": []
+}

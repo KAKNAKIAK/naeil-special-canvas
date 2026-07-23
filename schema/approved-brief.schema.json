@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://naeiltour.local/naeil-special-canvas/approved-brief.schema.json",
+  "title": "Naeil Special Canvas Approved Brief",
+  "type": "object",
+  "required": ["status", "approvedAt", "product", "common", "blockOrder", "blocks", "confirmedFacts", "needsReview", "imageDirections"],
+  "properties": {
+    "status": { "type": "string", "enum": ["draft", "approved"] },
+    "approvedAt": { "type": "string" },
+    "updatedAt": { "type": "string" },
+    "audience": { "type": "string" },
+    "message": { "type": "string" },
+    "product": {
+      "type": "object",
+      "required": ["name", "category", "layout"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "category": { "type": "string", "enum": ["금까기", "우리만", "특별한", "골프"] },
+        "layout": { "type": "string", "enum": ["destination-catalog", "hotel-detail", "hotel-sales", "theme-package", "journey-longform", "golf-standard", "offer-promotion"] },
+        "destination": { "type": "string" },
+        "subtitle": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "common": {
+      "type": "object",
+      "required": ["categoryLabel", "title", "body"],
+      "properties": { "categoryLabel": { "type": "string" }, "title": { "type": "string" }, "body": { "type": "string" } },
+      "additionalProperties": true
+    },
+    "blockOrder": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "blocks": { "type": "array", "items": { "type": "object", "required": ["type"], "properties": { "type": { "type": "string" } }, "additionalProperties": true } },
+    "images": { "type": "array", "items": { "type": "object", "required": ["id", "name", "src"], "additionalProperties": true } },
+    "imageIds": { "type": "array", "items": { "type": "string" } },
+    "confirmedFacts": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+    "needsReview": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+    "imageDirections": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
+  },
+  "additionalProperties": true
+}

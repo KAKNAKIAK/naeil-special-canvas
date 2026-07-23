@@ -1,0 +1,41 @@
+{
+  "status": "approved",
+  "approvedAt": "2026-07-22T19:30:00+09:00",
+  "product": {
+    "name": "괌 두짓타니 4박 5일 가족여행",
+    "category": "금까기",
+    "layout": "hotel-sales",
+    "destination": "괌",
+    "subtitle": "가족 맞춤 휴양 4박 5일"
+  },
+  "common": {
+    "categoryLabel": "FAMILY STAY",
+    "title": "괌에서 만나는 여유로운 가족 휴양",
+    "body": "호텔, 이동, 일정의 핵심 정보를 한눈에 확인하세요."
+  },
+  "blockOrder": ["text", "image", "list", "timeline"],
+  "blocks": [
+    { "type": "text" },
+    { "type": "image", "title": "두짓타니 괌 리조트", "body": "객실과 부대시설의 분위기를 소개합니다.", "mediaIds": ["hotel-exterior"] },
+    { "type": "list", "title": "여행 포인트", "items": ["가족 고객 중심의 숙소 선택", "일정에 맞춘 이동 동선", "현지 체험은 요청에 따라 조정"] },
+    { "type": "timeline", "title": "간단 일정", "items": ["15:00 | 호텔 체크인 | 객실 배정 후 휴식", "18:00 | 자유 일정 | 가족별 저녁 시간"], "timelineDayStarts": [0], "mediaIds": ["", "hotel-exterior", ""] }
+  ],
+  "images": [
+    {
+      "id": "hotel-exterior",
+      "name": "dusit-thani-guam.jpg",
+      "src": "https://example.com/dusit-thani-guam.jpg",
+      "alt": "두짓타니 괌 리조트 외관",
+      "downloadStatus": "pending"
+    }
+  ],
+  "confirmedFacts": [
+    { "field": "숙박", "value": "4박", "source": "사용자 제공 일정표" }
+  ],
+  "needsReview": [
+    { "field": "항공편", "reason": "출발일에 따라 변경 가능" }
+  ],
+  "imageDirections": [
+    { "assetId": "hotel-exterior", "role": "리조트 외관 대표 이미지" }
+  ]
+}
