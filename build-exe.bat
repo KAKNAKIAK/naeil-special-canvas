@@ -18,6 +18,9 @@ copy /y "%~dp0desktop\main.cjs" "%DESKTOPRUNTIME%\main.cjs" >nul
 copy /y "%~dp0desktop\preload.cjs" "%DESKTOPRUNTIME%\preload.cjs" >nul
 if exist "%DESKTOPRUNTIME%\dist" rmdir /s /q "%DESKTOPRUNTIME%\dist"
 xcopy /e /i /y "%~dp0dist" "%DESKTOPRUNTIME%\dist" >nul
+if exist "%DESKTOPRUNTIME%\build-assets\naeil-special-canvas-writer" rmdir /s /q "%DESKTOPRUNTIME%\build-assets\naeil-special-canvas-writer"
+xcopy /e /i /y "%~dp0..\.agents\skills\naeil-special-canvas-writer" "%DESKTOPRUNTIME%\build-assets\naeil-special-canvas-writer" >nul
+if errorlevel 1 goto error
 
 echo [3/4] Electron 빌드 도구 및 업데이트 모듈 확인
 set "NEED_NPM_INSTALL=0"
@@ -30,7 +33,7 @@ if "%NEED_NPM_INSTALL%"=="1" (
   if errorlevel 1 goto error
 )
 
-echo [4/4] NSIS 설치형 EXE 생성
+echo [4/4] 작성 스킬 포함 NSIS 설치형 EXE 생성
 if exist "%DESKTOPRUNTIME%\release" rmdir /s /q "%DESKTOPRUNTIME%\release"
 call "%DESKTOPRUNTIME%\node_modules\.bin\electron-builder.cmd" --win nsis --x64 --projectDir "%DESKTOPRUNTIME%" %PUBLISH_ARG%
 if errorlevel 1 goto error

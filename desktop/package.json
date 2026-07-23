@@ -1,6 +1,6 @@
 {
   "name": "naeil-special-canvas-desktop",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "내일스패셜 기획안 캔버스 데스크톱 앱",
   "main": "main.cjs",
   "private": true,
@@ -21,6 +21,13 @@
       "main.cjs",
       "preload.cjs",
       "dist/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "build-assets/naeil-special-canvas-writer",
+        "to": "skills/naeil-special-canvas-writer",
+        "filter": ["**/*"]
+      }
     ],
     "directories": {
       "output": "release"

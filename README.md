@@ -10,6 +10,7 @@ GitHub Releases에서 `내일스패셜-메이킹-스튜디오-Setup-<버전>.exe
 - EXE 재빌드: `build-exe.bat`
 - GitHub Release 게시: `publish-github-release.bat`
 - 코드 서명이 없는 사내용 빌드이므로 처음 실행할 때 Windows SmartScreen 경고가 표시될 수 있습니다.
+- 설치본에는 `resources\\skills\\naeil-special-canvas-writer` 경로로 작성 스킬 원본 전체가 함께 포함됩니다.
 
 ## 다음 버전 배포
 
