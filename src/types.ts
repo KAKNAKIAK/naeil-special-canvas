@@ -158,6 +158,8 @@ export interface Section {
   mediaLayout: MediaLayout
   contentLayout: ContentLayout
   layoutBoxes?: BlockBox[]
+  /** Base text/media cards removed from an image-flow block. */
+  removedLayoutBoxIds?: string[]
   mediaLayoutItems?: MediaLayoutItem[]
   note: string
   background: 'white' | 'mist' | 'teal' | 'sand'

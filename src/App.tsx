@@ -292,7 +292,24 @@ export default function App() {
       ? { id: crypto.randomUUID(), kind, column: 1, row: bottom + 1, columnSpan: 12, rowSpan: kind === 'text' ? 4 : 6, zIndex: Math.max(...boxes.map(box => box.zIndex), 0) + 1, eyebrow: kind === 'text' ? 'Category Label' : undefined, title: kind === 'text' ? '제목' : undefined, text: kind === 'text' ? '본문' : undefined, assetIds: kind === 'image' ? [] : undefined }
       : { id: crypto.randomUUID(), kind, column: kind === 'text' ? 2 : 7, row: bottom + 1, columnSpan: 5, rowSpan: kind === 'text' ? 3 : 5, zIndex: Math.max(...boxes.map(box => box.zIndex), 0) + 1, text: kind === 'text' ? '새 텍스트를 입력하세요.' : undefined, assetIds: kind === 'image' ? [] : undefined }
     section.layoutBoxes = [...boxes, next]; boxId = next.id }); if (boxId) { setSelectedId(sectionId); setSelectedBoxId(boxId); setToast(kind === 'text' ? '텍스트 카드를 추가했습니다.' : '이미지 카드를 추가했습니다.') } }
-  function deleteLayoutBox(sectionId: string, boxId: string) { commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || (section.type !== 'image' && (boxId === 'content' || boxId === 'media'))) return; section.layoutBoxes = normalizeLayoutBoxes(section).filter(box => box.id !== boxId) }); setSelectedBoxId(''); setToast('카드를 삭제했습니다.') }
+  function deleteLayoutBox(sectionId: string, boxId: string) {
+    let deleted = false
+    commit(draft => {
+      const section = draft.sections.find(item => item.id === sectionId)
+      if (!section || (section.type !== 'image' && (boxId === 'content' || boxId === 'media'))) return
+      const boxes = normalizeLayoutBoxes(section)
+      if (!boxes.some(box => box.id === boxId)) return
+      if (boxId === 'content' || boxId === 'media') {
+        section.removedLayoutBoxIds = [...new Set([...(section.removedLayoutBoxIds || []), boxId])]
+      } else {
+        section.layoutBoxes = boxes.filter(box => box.id !== boxId)
+      }
+      deleted = true
+    })
+    if (!deleted) return
+    setSelectedBoxId('')
+    setToast('카드를 삭제했습니다.')
+  }
   function changeBoxLayer(sectionId: string, boxId: string, amount: number) { commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section) return; const boxes = normalizeLayoutBoxes(section); const target = boxes.find(box => box.id === boxId); if (!target) return; target.zIndex = Math.max(1, Math.min(99, target.zIndex + amount)); section.layoutBoxes = boxes }) }
   function moveImageFlowBox(sectionId: string, boxId: string, direction: -1 | 1) { commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || (section.type !== 'image' && section.type !== 'text')) return; const boxes = normalizeLayoutBoxes(section).filter(box => section.type === 'image' || box.kind === 'content' || box.kind === 'text').slice().sort((a, b) => a.row - b.row || a.column - b.column); const index = boxes.findIndex(box => box.id === boxId); const target = index + direction; if (index < 0 || target < 0 || target >= boxes.length) return; [boxes[index], boxes[target]] = [boxes[target], boxes[index]]; let row = 1; section.layoutBoxes = boxes.map((box, order) => { const rowSpan = box.kind === 'content' || box.kind === 'text' ? 4 : 6; const next = { ...box, column: 1, row, columnSpan: 12, rowSpan, zIndex: order + 1 }; row += rowSpan + 1; return next }) }); setToast(direction < 0 ? '카드를 위로 옮겼습니다.' : '카드를 아래로 옮겼습니다.') }
   const isItemPreset = (type: SectionType) => ITEM_PRESET_TYPES.has(type)

@@ -100,8 +100,9 @@ export function createLayoutBoxes(layout: Section['contentLayout'], mediaIds: st
   return [content, media]
 }
 
-export function normalizeLayoutBoxes(section: Pick<Section, 'contentLayout' | 'mediaIds' | 'layoutBoxes'>): BlockBox[] {
-  const defaults = createLayoutBoxes(section.contentLayout || 'text-top', section.mediaIds || [])
+export function normalizeLayoutBoxes(section: Pick<Section, 'contentLayout' | 'mediaIds' | 'layoutBoxes' | 'removedLayoutBoxIds'>): BlockBox[] {
+  const removed = new Set(section.removedLayoutBoxIds || [])
+  const defaults = createLayoutBoxes(section.contentLayout || 'text-top', section.mediaIds || []).filter(box => !removed.has(box.id))
   const byId = new Map((section.layoutBoxes || []).map(box => [box.id, box]))
   const normalized = defaults.map(fallback => { const saved = byId.get(fallback.id); const assetIds = fallback.kind === 'media' ? (saved?.assetIds?.length ? saved.assetIds : section.mediaIds || []) : undefined; return { ...fallback, ...saved, assetIds: assetIds ? [...new Set(assetIds.filter(Boolean))] : undefined } })
   const extras = (section.layoutBoxes || []).filter(box => box.id !== 'content' && box.id !== 'media').map((box, index) => ({
