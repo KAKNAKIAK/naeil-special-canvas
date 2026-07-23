@@ -3,6 +3,7 @@ import YAML from 'yaml'
 import { toPng } from 'html-to-image'
 import type { MediaAsset, Project, Section } from './types'
 import { normalizeLayoutBoxes, SECTION_LABELS } from './catalog'
+import { normalizeCustomLayout } from './image-layout'
 import { runQa } from './qa'
 import { isRichTextEmpty, sanitizeRichText } from './rich-text'
 
@@ -56,9 +57,9 @@ export function projectLoadJson(project: Project) {
 function dataAssetFilename(id: string, src: string) { const ext = src.match(/^data:image\/([a-zA-Z0-9+.-]+);/)?.[1]?.replace('jpeg', 'jpg') || 'img'; return `assets/${id}.${ext}` }
 type ExportAsset = MediaAsset & { sourceLabel?: string }
 function assetSourceLabel(asset: ExportAsset) { return asset.sourceLabel || (asset.src.startsWith('http') ? asset.src : asset.name) }
-function renderExportImage(asset: MediaAsset, className = '', style = '') {
+function renderExportImage(asset: MediaAsset, className = '', style = '', imageStyle = '') {
   const source = assetSourceLabel(asset as ExportAsset)
-  return `<div class="export-image${className ? ` ${escapeHtml(className)}` : ''}"${style ? ` style="${style}"` : ''}><img src="${asset.src}" alt="${escapeHtml(asset.alt || asset.name)}"><span class="image-source-label">${escapeHtml(source)}</span></div>`
+  return `<div class="export-image${className ? ` ${escapeHtml(className)}` : ''}"${style ? ` style="${style}"` : ''}><img src="${asset.src}" alt="${escapeHtml(asset.alt || asset.name)}"${imageStyle ? ` style="${imageStyle}"` : ''}><span class="image-source-label">${escapeHtml(source)}</span></div>`
 }
 function renderMedia(project: Project, mediaIds: string[], mediaLayout: string) {
   const media = mediaIds.map(id => project.assets.find(asset => asset.id === id)).filter(Boolean)
@@ -100,6 +101,16 @@ function renderImageFlowSection(project: Project, section: Section) {
   const imageCard = (ids: string[]) => {
     const assets = ids.map(id => assetFor(project, id)).filter(Boolean) as MediaAsset[]
     if (!assets.length) return '<div style="height:285px;display:grid;place-items:center;border:1px dashed #b8cacc;background:#f7fbfb;color:#789093;font-size:11px">이미지를 연결하세요.</div>'
+    if (section.mediaLayout === 'custom') {
+      const layoutItems = normalizeCustomLayout(ids, section.mediaLayoutItems)
+      const rowCount = Math.max(...layoutItems.map(item => item.row + item.rowSpan - 1), 1)
+      const images = assets.map(asset => {
+        const item = layoutItems.find(entry => entry.assetId === asset.id)
+        if (!item) return renderExportImage(asset, '', 'height:360px')
+        return renderExportImage(asset, '', `grid-column:${item.column} / span ${item.columnSpan};grid-row:${item.row} / span ${item.rowSpan}`, `object-position:${item.focus}`)
+      }).join('')
+      return `<div class="export-custom-media" style="display:grid;gap:5px;grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:repeat(${rowCount},108px)">${images}</div>`
+    }
     const columns = assets.length === 1 ? '1fr' : 'repeat(2,1fr)'
     return `<div style="display:grid;grid-template-columns:${columns};gap:5px">${assets.map(asset => renderExportImage(asset, '', 'height:360px')).join('')}</div>`
   }

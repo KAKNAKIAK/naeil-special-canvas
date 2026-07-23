@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Archive, ArrowLeftRight, Blocks, CalendarDays, CarFront, Check, ChevronDown, ChevronUp, CircleHelp, Compass, Copy, Download, ExternalLink, Eye, FileJson, FileText, FolderOpen, GripVertical, Hotel, Image as ImageIcon, Layers, Link2, LogOut, MapPinned, Maximize2, Menu, Minus, MonitorUp, PanelsTopLeft, Plane, Plus, Redo2, Save, Settings2, Sparkles, Star, Table2, Trash2, Undo2, Upload, UsersRound, X } from 'lucide-react'
 import YAML from 'yaml'
 import { createSeedProject, GROUPS, isLegacyBaliSeed, makeSection, normalizeLayoutBoxes, normalizeProject, normalizeReferenceMediaSlots, normalizeSectionType, referenceMediaSlot, SECTION_LABELS } from './catalog'
-import { normalizeContentGroups, removeSectionsFromGroups } from './content-groups'
+import { moveSectionUnit, normalizeContentGroups, removeSectionsFromGroups } from './content-groups'
 import { exportZip, parseShareSnapshot, projectLoadJson, standaloneHtml, downloadText } from './exporters'
 import { createCustomLayout, FOCUS_OPTIONS, layoutPresetsFor, normalizeCustomLayout, patchLayoutItem, type ImageOrientation } from './image-layout'
 import { loadWorkspace, saveMigrationBackup, saveWorkspace } from './storage'
@@ -361,18 +361,11 @@ export default function App() {
     commit(draft => {
       const group = (draft.contentGroups || []).find(item => item.id === id)
       if (!group) return
-      const indexes = group.sectionIds.map(sectionId => draft.sections.findIndex(section => section.id === sectionId))
-      const first = Math.min(...indexes)
-      const last = Math.max(...indexes)
-      if (!Number.isFinite(first) || !Number.isFinite(last) || last - first + 1 !== group.sectionIds.length) return
-      if (direction < 0 && first === 0) return
-      if (direction > 0 && last === draft.sections.length - 1) return
-      const groupSections = draft.sections.splice(first, group.sectionIds.length)
-      draft.sections.splice(direction < 0 ? first - 1 : first + 1, 0, ...groupSections)
+      draft.sections = moveSectionUnit(draft.sections, draft.contentGroups, group.sectionIds[0], direction)
       draft.contentGroups = normalizeContentGroups(draft.contentGroups, draft.sections)
     })
   }
-  function moveSection(id: string, direction: -1 | 1) { commit(draft => { const index = draft.sections.findIndex(section => section.id === id); const target = index + direction; if (index < 0 || target < 0 || target >= draft.sections.length) return; [draft.sections[index], draft.sections[target]] = [draft.sections[target], draft.sections[index]]; draft.contentGroups = normalizeContentGroups(draft.contentGroups, draft.sections) }) }
+  function moveSection(id: string, direction: -1 | 1) { commit(draft => { draft.sections = moveSectionUnit(draft.sections, draft.contentGroups, id, direction); draft.contentGroups = normalizeContentGroups(draft.contentGroups, draft.sections) }) }
   function duplicateSection(id: string) { let newId = ''; commit(draft => { const index = draft.sections.findIndex(s => s.id === id); if (index < 0) return; const copy = deepCopy(draft.sections[index]); copy.id = crypto.randomUUID(); copy.title += ' 복사본'; newId = copy.id; draft.sections.splice(index + 1, 0, copy); draft.contentGroups = normalizeContentGroups(draft.contentGroups, draft.sections) }); setSelectedId(newId) }
   function deleteSection(id: string) { commit(draft => { draft.sections = draft.sections.filter(s => s.id !== id); draft.contentGroups = removeSectionsFromGroups(draft.contentGroups, [id], draft.sections) }); focusSection(project.sections.find(s => s.id !== id)) }
   function requestImageUpload(target: ImageTarget = null) { if (selected && REFERENCE_LAYOUT_TYPES.has(selected.type) && selectedSpecialMediaIndex === null) { setImageTarget(null); imageRef.current?.click(); return } setImageTarget(target); imageRef.current?.click() }

@@ -27,3 +27,30 @@ export function removeSectionsFromGroups(groups: ContentGroup[] | undefined, sec
   const removed = new Set(sectionIds)
   return normalizeContentGroups((groups || []).map(group => ({ ...group, sectionIds: group.sectionIds.filter(id => !removed.has(id)) })), sections)
 }
+
+/**
+ * Moves one layer unit across another. A content group is always one unit, so
+ * an unrelated block can never be inserted between its member blocks.
+ */
+export function moveSectionUnit(sections: Section[], groups: ContentGroup[] | undefined, sectionId: string, direction: -1 | 1): Section[] {
+  const normalizedGroups = normalizeContentGroups(groups, sections)
+  const sourceGroup = normalizedGroups.find(group => group.sectionIds.includes(sectionId))
+  const sourceIds = sourceGroup?.sectionIds || [sectionId]
+  const sourceIndexes = sourceIds.map(id => sections.findIndex(section => section.id === id))
+  const first = Math.min(...sourceIndexes)
+  const last = Math.max(...sourceIndexes)
+  if (!Number.isFinite(first) || !Number.isFinite(last)) return sections
+
+  const adjacentIndex = direction < 0 ? first - 1 : last + 1
+  if (adjacentIndex < 0 || adjacentIndex >= sections.length) return sections
+  const adjacentId = sections[adjacentIndex].id
+  const targetGroup = normalizedGroups.find(group => group.sectionIds.includes(adjacentId))
+  const targetIds = targetGroup?.sectionIds || [adjacentId]
+  const moving = new Set(sourceIds)
+  const remaining = sections.filter(section => !moving.has(section.id))
+  const targetFirst = remaining.findIndex(section => section.id === targetIds[0])
+  if (targetFirst < 0) return sections
+  const insertAt = direction < 0 ? targetFirst : targetFirst + targetIds.length
+  const sourceSections = sections.filter(section => moving.has(section.id))
+  return [...remaining.slice(0, insertAt), ...sourceSections, ...remaining.slice(insertAt)]
+}
