@@ -439,7 +439,7 @@ export default function App() {
   function openNewBlankCanvas() { if (!window.confirm('새 빈 캔버스를 시작할까요?\n현재 작업은 이 PC에 자동 저장되어 프로젝트에서 다시 열 수 있습니다.')) return; newProject() }
   function startBlankCanvas() { setLeftTab('blocks'); setBlockPickerOpen(true) }
   function startSampleProject() { const next = createSampleProject(); setProjects(current => [next, ...current]); setProject(next); setSelectedId(next.sections[0]?.id || ''); setSelectedBoxId(''); setSelectedItemIndex(null); setHistory([]); setFuture([]); setLeftTab('blocks'); setToast('편집 가능한 샘플 기획안을 열었습니다.') }
-  function completeOnboarding(dontShowAgain = false) { if (dontShowAgain) localStorage.setItem(ONBOARDING_STORAGE_KEY, 'done'); setOnboardingOpen(false) }
+  function completeOnboarding(dontShowAgain = false) { if (dontShowAgain) localStorage.setItem(ONBOARDING_STORAGE_KEY, 'done'); setOnboardingOpen(false); setOnboardingStep(0); setLeftTab('blocks') }
   function changeOnboardingStep(step: number) { setOnboardingStep(step); if (step === 0) setLeftTab('blocks'); if (step === 2) setLeftTab('images'); if (step === 3) setLeftTab('layers') }
   function reopenOnboarding() { setHelpOpen(false); changeOnboardingStep(0); setOnboardingOpen(true) }
   function openProject(next: Project) { setProject(normalizeProject(next)); setSelectedId(next.sections[0]?.id || ''); setHistory([]); setFuture([]); setProjectBoardOpen(false) }
