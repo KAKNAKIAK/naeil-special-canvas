@@ -61,6 +61,7 @@ export interface CampaignData {
 
 export type SectionType = 'text' | 'image' | 'list' | 'table' | 'icon-card' | 'offer' | 'caption-grid' | 'menu-zigzag' | 'timeline'
 export type GeneratableSectionType = Exclude<SectionType, 'offer' | 'caption-grid'>
+export type BriefCompositionStrategy = 'photo-led' | 'detailed-schedule' | 'summary-schedule' | 'benefit-led' | 'story-led' | 'minimal'
 
 export interface BriefFact {
   id: string
@@ -101,6 +102,8 @@ export interface CanvasBrief {
   common: { categoryLabel: string; title: string; body: string }
   audience: string
   message: string
+  /** Why this draft uses its particular block flow. Stored for review, not as a sales claim. */
+  composition?: { strategy: BriefCompositionStrategy; reason: string }
   blockOrder: GeneratableSectionType[]
   blocks: CanvasBriefBlock[]
   imageIds: string[]
@@ -115,6 +118,8 @@ export interface BriefWorkspace {
   sourceUrls: string[]
   facts: BriefFact[]
   selectedImageIds: string[]
+  /** Optional manual choice when auto-analysis is not the desired presentation order. */
+  compositionHint?: 'auto' | BriefCompositionStrategy
   brief?: CanvasBrief
 }
 

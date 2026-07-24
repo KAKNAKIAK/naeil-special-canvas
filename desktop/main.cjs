@@ -7,6 +7,36 @@ const APP_ID = 'kr.co.naeiltour.specialcanvas'
 let isInstallingUpdate = false
 let autoUpdaterConfigured = false
 
+/**
+ * Mirrors the skill bundled with this app to an app-owned user-data folder.
+ * This deliberately never writes to the user's shared .agents/.codex folders.
+ */
+async function syncBundledSkill() {
+  if (!app.isPackaged) return
+  const skillName = 'naeil-special-canvas-writer'
+  const source = path.join(process.resourcesPath, 'skills', skillName)
+  const target = path.join(app.getPath('userData'), 'skills', skillName)
+  const staging = `${target}.staging`
+  try {
+    await fs.access(path.join(source, 'SKILL.md'))
+    await fs.rm(staging, { recursive: true, force: true })
+    await fs.mkdir(path.dirname(staging), { recursive: true })
+    await fs.cp(source, staging, { recursive: true, force: true })
+    await fs.writeFile(path.join(staging, '.installed-by.json'), JSON.stringify({
+      app: app.getName(),
+      appVersion: app.getVersion(),
+      syncedAt: new Date().toISOString(),
+    }, null, 2), 'utf8')
+    await fs.rm(target, { recursive: true, force: true })
+    await fs.rename(staging, target)
+    console.info(`[skill-sync] ${skillName} updated at ${target}`)
+  } catch (error) {
+    // A skill mirror must not prevent the canvas itself from launching.
+    console.warn('[skill-sync]', error.message)
+    await fs.rm(staging, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
 function configureAutoUpdater(window) {
   if (!app.isPackaged || autoUpdaterConfigured) return
   autoUpdaterConfigured = true
@@ -136,7 +166,8 @@ function createWindow() {
   window.loadFile(path.join(__dirname, 'dist', 'index.html'))
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await syncBundledSkill()
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

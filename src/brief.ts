@@ -1,6 +1,6 @@
 import { createCampaignData, makeSection, normalizeLayoutBoxes } from './catalog'
 import { CURRENT_CATALOG_VERSION, CURRENT_SCHEMA_VERSION } from './migrations'
-import type { BriefFact, BriefWorkspace, CanvasBrief, CanvasBriefBlock, GeneratableSectionType, MediaAsset, Project, Section } from './types'
+import type { BriefCompositionStrategy, BriefFact, BriefWorkspace, CanvasBrief, CanvasBriefBlock, GeneratableSectionType, Project, Section } from './types'
 
 const GENERATABLE_TYPES = new Set<GeneratableSectionType>(['text', 'image', 'list', 'table', 'icon-card', 'menu-zigzag', 'timeline'])
 const CATEGORY_LABEL: Record<Project['category'], string> = { 금까기: 'NAEIL GOLD', 우리만: 'NAEIL PRIVATE', 특별한: 'NAEIL SPECIAL', 골프: 'NAEIL GOLF' }
@@ -19,31 +19,130 @@ function draftLead(rawText: string) {
   return candidate ? candidate.slice(0, 180) : '상품의 핵심 가치와 확인된 정보를 바탕으로 기획 초안을 작성합니다.'
 }
 
-function scheduleRows(rawText: string) {
-  const lines = plainLines(rawText).filter(line => /(day\s*\d|\d\s*일차|일정|출발|도착|체크인|라운드)/i.test(line))
-  return lines.slice(0, 5).map((line, index) => [`DAY ${index + 1}`, line])
+type ContentSignals = {
+  sourceLines: string[]
+  scheduleLines: string[]
+  timedScheduleCount: number
+  visualLines: string[]
+  benefitCount: number
+  confirmed: BriefFact[]
 }
 
-function routeFor(category: Project['category'], rawText: string): GeneratableSectionType[] {
-  const hasDetailedSchedule = /(시간|\d{1,2}:\d{2}|체크인|라운드|일정)/.test(rawText)
-  if (category === '특별한') return hasDetailedSchedule ? ['text', 'image', 'timeline'] : ['text', 'image', 'list']
-  if (category === '골프') return ['text', 'image', 'list', 'table']
-  return ['text', 'image', 'list', 'table']
-}
+type CompositionPlan = { strategy: BriefCompositionStrategy; reason: string; order: GeneratableSectionType[] }
 
-function blockFor(type: GeneratableSectionType, common: CanvasBrief['common'], imageIds: string[], facts: BriefFact[], rawText: string): CanvasBriefBlock {
+const schedulePattern = /(day\s*\d|\d\s*일차|일정|출발|도착|체크인|체크아웃|라운드|tee\s*time)/i
+const timePattern = /\b\d{1,2}:\d{2}\b|오전|오후|am\b|pm\b/i
+const visualPattern = /(객실|룸|리조트|호텔|수영장|워터파크|스파|레스토랑|조식|식당|메뉴|관광지|전망|해변|비치|골프장|코스|클럽하우스)/i
+const benefitPattern = /(특전|포함|무료|전용|노쇼핑|업그레이드|혜택|할인|제공|추천|장점)/i
+
+function contentSignals(rawText: string, facts: BriefFact[]): ContentSignals {
+  const sourceLines = plainLines(rawText)
   const confirmed = facts.filter(fact => fact.status === 'confirmed' && fact.field.trim() && fact.value.trim())
-  const factItems = confirmed.slice(0, 4).map(fact => `${fact.field} · ${fact.value}`)
-  if (type === 'text') return { type, ...common }
-  if (type === 'image') return { type, categoryLabel: common.categoryLabel, title: '여행의 주요 장면', body: '이미지와 함께 보여 줄 핵심 장면을 정리한 초안입니다.', mediaIds: imageIds, mediaLayout: imageIds.length >= 3 ? 'custom' : 'auto', contentLayout: 'text-top' }
-  if (type === 'list') return { type, categoryLabel: common.categoryLabel, title: '핵심 포인트', body: '확인된 정보부터 우선 반영했습니다.', items: factItems.length ? factItems : ['확인된 상품 핵심 정보를 추가하세요.'], listStyle: 'list' }
-  if (type === 'table') {
-    const rows = scheduleRows(rawText)
-    return { type, categoryLabel: common.categoryLabel, title: '간략 일정표', body: '원본 일정표를 확인한 뒤 세부 내용을 보완하세요.', tableHeaders: ['구분', '내용'], tableRows: rows.length ? rows : [['DAY 1', '일정 원문을 확인한 뒤 입력하세요.']] }
+  const factText = confirmed.map(fact => `${fact.field} ${fact.value}`)
+  const allLines = [...sourceLines, ...factText]
+  return {
+    sourceLines,
+    scheduleLines: sourceLines.filter(line => schedulePattern.test(line)),
+    timedScheduleCount: sourceLines.filter(line => timePattern.test(line)).length,
+    visualLines: allLines.filter(line => visualPattern.test(line)),
+    benefitCount: allLines.filter(line => benefitPattern.test(line)).length,
+    confirmed,
   }
-  if (type === 'timeline') return { type, categoryLabel: common.categoryLabel, title: '상세 일정표', body: '시간과 장소는 원본 일정표 확인 후 보완하세요.', items: ['00:00 | 일정 제목 | 원본 일정표를 확인한 뒤 입력하세요.'], timelineDayStarts: [0], timelineHeroVisible: true, mediaIds: ['', imageIds[0] || ''] }
-  if (type === 'icon-card') return { type, categoryLabel: common.categoryLabel, title: '선택 포인트', body: '아이콘 카드로 정리할 핵심 가치를 입력하세요.', iconCards: [] }
-  return { type, categoryLabel: common.categoryLabel, title: '이미지·설명 카드', body: '이미지와 설명을 한 쌍으로 정리하세요.', items: ['제목 | 본문'], mediaIds: [imageIds[0] || ''], menuItemReversed: [false] }
+}
+
+function uniqueOrder(types: string[]): GeneratableSectionType[] {
+  return [...new Set(types)].filter((type): type is GeneratableSectionType => GENERATABLE_TYPES.has(type as GeneratableSectionType))
+}
+
+function routeFor(rawText: string, facts: BriefFact[], imageIds: string[], hint: BriefWorkspace['compositionHint'] = 'auto'): CompositionPlan {
+  const signals = contentSignals(rawText, facts)
+  const withImage = imageIds.length > 0
+  const withList = signals.confirmed.length > 0
+  const build = (strategy: BriefCompositionStrategy): CompositionPlan => {
+    if (strategy === 'detailed-schedule') return {
+      strategy,
+      reason: `시간 정보 ${signals.timedScheduleCount}건과 일정 행 ${signals.scheduleLines.length}건을 중심으로 구성했습니다.`,
+      order: uniqueOrder(['text', 'timeline', ...(withImage ? ['image'] : []), ...(signals.benefitCount >= 2 ? ['list'] : [])]),
+    }
+    if (strategy === 'summary-schedule') return {
+      strategy,
+      reason: `날짜·이동 중심 일정 행 ${signals.scheduleLines.length}건을 한눈에 보이도록 구성했습니다.`,
+      order: uniqueOrder(['text', 'table', ...(imageIds.length >= 2 ? ['menu-zigzag'] : withImage ? ['image'] : []), ...(withList ? ['list'] : [])]),
+    }
+    if (strategy === 'photo-led') return {
+      strategy,
+      reason: `선택 이미지 ${imageIds.length}장과 공간·시설 정보 ${signals.visualLines.length}건을 먼저 보여 주도록 구성했습니다.`,
+      order: uniqueOrder(['image', 'menu-zigzag', ...(signals.benefitCount >= 2 ? ['icon-card'] : withList ? ['list'] : []), ...(signals.scheduleLines.length >= 2 ? ['table'] : [])]),
+    }
+    if (strategy === 'benefit-led') return {
+      strategy,
+      reason: `확인된 구성·특전 정보 ${Math.max(signals.benefitCount, signals.confirmed.length)}건을 비교하기 쉽게 구성했습니다.`,
+      order: uniqueOrder(['text', 'icon-card', 'list', ...(withImage ? ['image'] : [])]),
+    }
+    if (strategy === 'story-led') return {
+      strategy,
+      reason: `이미지 ${imageIds.length}장과 설명 자료를 번갈아 보여 주도록 구성했습니다.`,
+      order: uniqueOrder(['image', 'text', ...(imageIds.length >= 2 ? ['menu-zigzag'] : []), ...(withList ? ['list'] : [])]),
+    }
+    return {
+      strategy: 'minimal',
+      reason: '현재 확인된 자료량에 맞춰 필요한 블록만 최소 구성으로 만들었습니다.',
+      order: uniqueOrder(['text', ...(withImage ? ['image'] : []), ...(withList ? ['list'] : [])]),
+    }
+  }
+  if (hint && hint !== 'auto') return build(hint)
+  if (signals.timedScheduleCount >= 2 || signals.scheduleLines.length >= 4) return build('detailed-schedule')
+  if (imageIds.length >= 3 && (signals.visualLines.length >= 1 || signals.scheduleLines.length === 0)) return build('photo-led')
+  if (signals.benefitCount >= 2 || signals.confirmed.length >= 3) return build('benefit-led')
+  if (signals.scheduleLines.length >= 2) return build('summary-schedule')
+  if (imageIds.length >= 2 && (signals.visualLines.length >= 1 || signals.sourceLines.length >= 3)) return build('story-led')
+  return build('minimal')
+}
+
+function scheduleRows(signals: ContentSignals) {
+  return signals.scheduleLines.slice(0, 5).map((line, index) => [`DAY ${index + 1}`, line])
+}
+
+function titleAndBody(line: string) {
+  const [head, ...rest] = line.split(/\s*[:：]\s*/)
+  const title = head.trim().slice(0, 38) || line.slice(0, 38)
+  const body = rest.join(' ').trim() || '원본 자료의 상세 설명을 확인하세요.'
+  return { title, body }
+}
+
+function blockFor(type: GeneratableSectionType, common: CanvasBrief['common'], imageIds: string[], facts: BriefFact[], rawText: string, plan: CompositionPlan): CanvasBriefBlock {
+  const signals = contentSignals(rawText, facts)
+  const factItems = signals.confirmed.slice(0, 5).map(fact => `${fact.field} · ${fact.value}`)
+  const visualItems = [...signals.visualLines, ...signals.confirmed.map(fact => `${fact.field}: ${fact.value}`)]
+  const focus = signals.confirmed[0]?.field || '상품 구성'
+  if (type === 'text') return { type, ...common }
+  if (type === 'image') return {
+    type, categoryLabel: common.categoryLabel, title: `${focus} 이미지`, body: '선택한 이미지와 확인된 내용을 함께 배치하세요.', mediaIds: imageIds,
+    mediaLayout: imageIds.length >= 4 ? 'grid-3' : imageIds.length >= 2 ? 'grid-2' : 'auto',
+    contentLayout: plan.strategy === 'photo-led' ? 'media-top' : plan.strategy.includes('schedule') ? 'media-right' : 'text-top',
+  }
+  if (type === 'list') return {
+    type, categoryLabel: common.categoryLabel, title: plan.strategy === 'benefit-led' ? '포함 사항과 특전' : '확인된 포인트',
+    body: '확인된 내용만 먼저 정리했습니다.', items: factItems.length ? factItems : ['확인된 상품 정보를 추가하세요.'], listStyle: plan.strategy === 'benefit-led' ? 'offer' : 'list',
+  }
+  if (type === 'table') {
+    const rows = scheduleRows(signals)
+    return { type, categoryLabel: common.categoryLabel, title: '일정 한눈에 보기', body: '원본 일정에서 확인한 이동과 체험을 정리했습니다.', tableHeaders: ['구분', '내용'], tableRows: rows.length ? rows : [['DAY 1', '일정 원문을 확인한 뒤 입력하세요.']] }
+  }
+  if (type === 'timeline') {
+    const timelineItems = signals.scheduleLines.slice(0, 8).map((line, index) => {
+      const time = line.match(/\b\d{1,2}:\d{2}\b/)?.[0] || `${String(index + 9).padStart(2, '0')}:00`
+      const copy = titleAndBody(line)
+      return `${time} | ${copy.title} | ${copy.body}`
+    })
+    return { type, categoryLabel: common.categoryLabel, title: '시간별 일정', body: '시간 정보가 있는 원본 일정부터 배치했습니다.', items: timelineItems.length ? timelineItems : ['00:00 | 일정 제목 | 원본 일정표를 확인한 뒤 입력하세요.'], timelineDayStarts: [0], timelineHeroVisible: true, mediaIds: ['', ...imageIds.slice(0, Math.max(1, timelineItems.length))] }
+  }
+  if (type === 'icon-card') {
+    const cards = (signals.confirmed.length ? signals.confirmed : [{ field: '확인 포인트', value: '상품 정보를 추가하세요.' }]).slice(0, 6).map((fact, index) => ({ id: `brief-card-${index + 1}`, icon: index % 3 === 0 ? 'calendar' : index % 3 === 1 ? 'hotel' : 'car', title: fact.field, body: fact.value, tone: index % 3 === 0 ? 'teal' as const : index % 3 === 1 ? 'orange' as const : 'green' as const }))
+    return { type, categoryLabel: common.categoryLabel, title: '선택 이유', body: '핵심 조건을 카드로 나눠 확인하세요.', iconCards: cards }
+  }
+  const pairs = visualItems.slice(0, Math.max(1, Math.min(imageIds.length || 1, 4))).map(titleAndBody)
+  return { type, categoryLabel: common.categoryLabel, title: '공간과 경험', body: '이미지와 연결할 설명을 원본 자료에서 골랐습니다.', items: pairs.length ? pairs.map(pair => `${pair.title} | ${pair.body}`) : ['제목 | 원본 자료의 설명을 입력하세요.'], mediaIds: imageIds.slice(0, Math.max(1, pairs.length)), menuItemReversed: pairs.map((_, index) => index % 2 === 1) }
 }
 
 export function buildDraftBrief(project: Project, workspace: BriefWorkspace): CanvasBrief {
@@ -51,7 +150,8 @@ export function buildDraftBrief(project: Project, workspace: BriefWorkspace): Ca
   const lead = draftLead(workspace.rawText)
   const common = { categoryLabel: CATEGORY_LABEL[product.category], title: product.name, body: lead }
   const imageIds = workspace.selectedImageIds.filter(id => project.assets.some(asset => asset.id === id))
-  const blockOrder = routeFor(product.category, workspace.rawText)
+  const plan = routeFor(workspace.rawText, workspace.facts, imageIds, workspace.compositionHint)
+  const blockOrder = plan.order
   const confirmedFacts = workspace.facts.filter(fact => fact.status === 'confirmed' && fact.field.trim() && fact.value.trim()).map(fact => ({ field: fact.field.trim(), value: fact.value.trim(), source: fact.source.trim() || '사용자 입력' }))
   const needsReview = [
     ...workspace.facts.filter(fact => fact.status === 'needs-review' && (fact.field.trim() || fact.value.trim())).map(fact => ({ field: fact.field.trim() || '확인 필요 정보', reason: fact.value.trim() || '원본 자료 확인 필요' })),
@@ -60,8 +160,8 @@ export function buildDraftBrief(project: Project, workspace: BriefWorkspace): Ca
   ]
   return {
     status: 'draft', approvedAt: '', updatedAt: new Date().toISOString(), product, common,
-    audience: CATEGORY_AUDIENCE[product.category], message: lead,
-    blockOrder, blocks: blockOrder.map(type => blockFor(type, common, imageIds, workspace.facts, workspace.rawText)), imageIds,
+    audience: CATEGORY_AUDIENCE[product.category], message: lead, composition: { strategy: plan.strategy, reason: plan.reason },
+    blockOrder, blocks: blockOrder.map(type => blockFor(type, common, imageIds, workspace.facts, workspace.rawText, plan)), imageIds,
     confirmedFacts, needsReview, imageDirections: imageIds.map((assetId, index) => ({ assetId, role: index === 0 ? '대표 이미지 후보' : `보조 이미지 ${index}` })),
   }
 }
@@ -111,7 +211,7 @@ export function buildProjectFromApprovedBrief(current: Project, brief: CanvasBri
     campaign: createCampaignData(current.id, brief.product.name), sections: brief.blocks.map(applyBlock), contentGroups: [], assets,
     generator: { name: 'naeil-special-canvas-brief-studio', version: '1.0.0', generatedAt: now },
     briefWorkspace: { ...(current.briefWorkspace || createBriefWorkspace()), brief },
-    extensions: { ...(current.extensions || {}), approvedBrief: { approvedAt: brief.approvedAt, confirmedFacts: brief.confirmedFacts, needsReview: brief.needsReview, imageDirections: brief.imageDirections } },
+    extensions: { ...(current.extensions || {}), approvedBrief: { approvedAt: brief.approvedAt, composition: brief.composition, confirmedFacts: brief.confirmedFacts, needsReview: brief.needsReview, imageDirections: brief.imageDirections } },
   }
   project.campaign.campaign_id = project.id
   project.campaign.product_name = project.name

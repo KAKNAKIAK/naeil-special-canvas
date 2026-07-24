@@ -38,6 +38,12 @@ G:\내 드라이브\안티그래비티\naeil-special-canvas의 현재 변경사�
 resources\skills\naeil-special-canvas-writer\SKILL.md
 ```
 
+또한 설치본을 한 번 실행한 뒤, 앱 전용 사용자 폴더에도 아래 파일이 동기화되는지 확인한다. 공용 `.agents` 또는 `.codex` 폴더는 절대 수정하지 않는다.
+
+```text
+%APPDATA%\NaeilSpecialCanvas\skills\naeil-special-canvas-writer\SKILL.md
+```
+
 8. 변경 소스를 커밋하고 `main` 브랜치에 push한다.
 9. `gh auth status`로 GitHub CLI 로그인을 확인한 뒤 `publish-github-release.bat` 또는 동등한 `gh release create` 절차로 Release를 게시한다.
 10. Release가 draft/prerelease가 아닌지, 업로드된 EXE SHA-256이 로컬 파일과 같은지 확인한다.
