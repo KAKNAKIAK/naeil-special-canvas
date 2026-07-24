@@ -1,6 +1,6 @@
 import JSZip from 'jszip'
 import { describe, expect, it, vi } from 'vitest'
-import { GROUPS, createSeedProject, isLegacyBaliSeed, makeSection, normalizeLayoutBoxes, normalizeProject, normalizeReferenceMediaSlots, referenceMediaSlot } from './catalog'
+import { GROUPS, createSeedProject, isLegacyBaliSeed, makeSection, normalizeLayoutBoxes, normalizeProject, normalizeReferenceMediaSlots, referenceMediaSlot, timelineDayStartsAfterItemRemoval } from './catalog'
 import { runQa } from './qa'
 import { assetsManifestJson, canvasDocumentJson, exportZip, manifestJson, manifestYaml, projectLoadJson, standaloneHtml } from './exporters'
 import { CURRENT_CATALOG_VERSION, CURRENT_SCHEMA_VERSION, isDirectProjectPayload, migrateProject } from './migrations'
@@ -22,6 +22,11 @@ describe('delivery QA', () => {
     expect(normalizeReferenceMediaSlots('timeline', ['a', 'b'], ['hero', 'first'])).toEqual(['hero', 'first', ''])
     expect(referenceMediaSlot('menu-zigzag', 1)).toBe(1)
     expect(referenceMediaSlot('timeline', 0)).toBe(1)
+  })
+  it('keeps detailed-schedule day labels aligned after removing an individual schedule item', () => {
+    expect(timelineDayStartsAfterItemRemoval([0, 2], 3, 1)).toEqual([0, 1])
+    expect(timelineDayStartsAfterItemRemoval([0, 2], 3, 2)).toEqual([0])
+    expect(timelineDayStartsAfterItemRemoval([0, 2], 4, 2)).toEqual([0, 2])
   })
   it('migrates legacy named blocks into shared structures', () => { const project = createSeedProject(); project.sections = [{ ...makeSection('text'), type: 'hotel-showcase' as never }, { ...makeSection('text'), type: 'faq' as never }, { ...makeSection('text'), type: 'offer-price' as never }]; expect(normalizeProject(project).sections.map(section => section.type)).toEqual(['image', 'list', 'offer']) })
   it('plans image splits without losing edge pixels', () => { expect(buildSplitPlan(101, 99, 'grid-4')).toEqual([{ x: 0, y: 0, width: 50, height: 49, index: 1 }, { x: 50, y: 0, width: 51, height: 49, index: 2 }, { x: 0, y: 49, width: 50, height: 50, index: 3 }, { x: 50, y: 49, width: 51, height: 50, index: 4 }]) })

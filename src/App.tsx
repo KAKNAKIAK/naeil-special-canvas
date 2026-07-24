@@ -1,7 +1,8 @@
 ﻿import { useEffect, useRef, useState } from 'react'
 import { Archive, ArrowLeftRight, Blocks, CalendarDays, CarFront, Check, ChevronDown, ChevronUp, CircleHelp, Compass, Copy, Download, ExternalLink, Eye, FileJson, FileText, FolderOpen, GripVertical, Hotel, Image as ImageIcon, Layers, Link2, LogOut, MapPinned, Maximize2, Menu, Minus, MonitorUp, PanelsTopLeft, Plane, Plus, Redo2, Save, Settings2, Sparkles, Star, Table2, Trash2, Undo2, Upload, UsersRound, X } from 'lucide-react'
 import YAML from 'yaml'
-import { createSeedProject, GROUPS, isLegacyBaliSeed, makeSection, normalizeLayoutBoxes, normalizeProject, normalizeReferenceMediaSlots, normalizeSectionType, referenceMediaSlot, SECTION_LABELS } from './catalog'
+import { createSampleProject, createSeedProject, GROUPS, isLegacyBaliSeed, makeSection, normalizeLayoutBoxes, normalizeProject, normalizeReferenceMediaSlots, normalizeSectionType, referenceMediaSlot, SECTION_LABELS, timelineDayStartsAfterItemRemoval } from './catalog'
+import { APP_VERSION } from './app-version'
 import { moveSectionUnit, normalizeContentGroups, removeSectionsFromGroups } from './content-groups'
 import { exportZip, parseShareSnapshot, projectLoadJson, standaloneHtml, downloadText } from './exporters'
 import { createCustomLayout, FOCUS_OPTIONS, layoutPresetsFor, normalizeCustomLayout, patchLayoutItem, type ImageOrientation } from './image-layout'
@@ -15,6 +16,7 @@ type LeftTab = 'blocks' | 'images' | 'layers'
 type ImageTarget = { sectionId?: string; boxId?: string; specialMediaIndex?: number; replaceAssetId?: string } | null
 
 const CANVAS_WIDTH = 720
+const ONBOARDING_STORAGE_KEY = 'naeil-special-canvas:onboarding-v1'
 // The previous visual 120% size is the new user-facing 100% baseline.
 const ZOOM_REFERENCE = 100 / 1.2
 const BRAND_LOGO = new URL('./assets/naeil-tour-ci.png', import.meta.url).href
@@ -46,14 +48,14 @@ const iconCardOption = (icon: string) => ICON_CARD_OPTIONS.find(option => option
 const BRIEF_BLOCK_TYPES: GeneratableSectionType[] = ['text', 'image', 'list', 'icon-card', 'table', 'timeline', 'menu-zigzag']
 type InlineTag = 'span' | 'p' | 'h2' | 'h3' | 'div' | 'strong' | 'b' | 'figcaption'
 const BLOCK_EDITOR_COPY: Record<SectionType, { lead: string; eyebrow: string; title: string; body: string; eyebrowPlaceholder: string; titlePlaceholder: string; bodyPlaceholder: string }> = {
-  text: { lead: '문장 중심 섹션입니다. 핵심 메시지와 설명을 자연스럽게 이어 작성하세요.', eyebrow: '상단 분류', title: '핵심 메시지', body: '본문', eyebrowPlaceholder: '예: Category Label', titlePlaceholder: '고객에게 먼저 보일 핵심 문장', bodyPlaceholder: '메시지를 뒷받침하는 설명을 입력하세요.' },
+  text: { lead: '한 가지 메시지와 설명을 이어 쓰는 블록입니다.', eyebrow: '상단 분류', title: '핵심 메시지', body: '본문', eyebrowPlaceholder: '예: Category Label', titlePlaceholder: '고객에게 먼저 보일 핵심 문장', bodyPlaceholder: '메시지를 뒷받침하는 설명을 입력하세요.' },
   image: { lead: '이미지는 왼쪽 라이브러리에서 연결하고, 이곳에는 이미지 맥락만 작성합니다.', eyebrow: '이미지 분류', title: '이미지 섹션 제목', body: '이미지 소개·캡션', eyebrowPlaceholder: '예: HOTEL VIEW', titlePlaceholder: '예: 객실에서 만나는 바다 전망', bodyPlaceholder: '사진에서 보여 주고 싶은 장면과 특징을 입력하세요.' },
-  list: { lead: '반복되는 핵심 포인트를 짧고 같은 결로 정리하는 블록입니다.', eyebrow: '포인트 분류', title: '목록 제목', body: '목록 도입 문장', eyebrowPlaceholder: '예: WHY THIS TRIP', titlePlaceholder: '예: 여행을 더 편하게 만드는 세 가지', bodyPlaceholder: '목록을 읽기 전에 필요한 짧은 안내를 입력하세요.' },
-  table: { lead: '일정, 조건, 비교처럼 행과 열의 관계가 필요한 정보에 사용합니다.', eyebrow: '카테고리 라벨', title: '제목', body: '본문', eyebrowPlaceholder: '예: TRIP SCHEDULE', titlePlaceholder: '예: 여행 일정 한눈에 보기', bodyPlaceholder: '표를 읽는 방법이나 기준을 짧게 입력하세요.' },
+  list: { lead: '핵심 포인트를 짧게 정리하는 블록입니다.', eyebrow: '포인트 분류', title: '목록 제목', body: '목록 도입 문장', eyebrowPlaceholder: '예: WHY THIS TRIP', titlePlaceholder: '예: 여행을 더 편하게 만드는 세 가지', bodyPlaceholder: '목록을 읽기 전에 필요한 짧은 안내를 입력하세요.' },
+  table: { lead: '일정, 조건, 비교처럼 행과 열로 봐야 하는 정보에 씁니다.', eyebrow: '카테고리 라벨', title: '제목', body: '본문', eyebrowPlaceholder: '예: TRIP SCHEDULE', titlePlaceholder: '예: 여행 일정 한눈에 보기', bodyPlaceholder: '표를 읽는 방법이나 기준을 짧게 입력하세요.' },
   'icon-card': { lead: '아이콘 카드로 상품의 선택 이유나 서비스 장점을 시각적으로 보여 줍니다.', eyebrow: '카테고리 라벨', title: '제목', body: '본문', eyebrowPlaceholder: '예: OUR PROMISE', titlePlaceholder: '예: 우리끼리만 떠나는 패키지', bodyPlaceholder: '카드 전체를 설명하는 한 문장을 입력하세요.' },
   offer: { lead: '특전, 포함 사항, 적용 조건을 한데 모아 강조하는 블록입니다.', eyebrow: '특전 분류', title: '특전 제목', body: '적용 안내', eyebrowPlaceholder: '예: NAEIL BENEFIT', titlePlaceholder: '예: 내일투어 단독 특전', bodyPlaceholder: '기간, 적용 대상, 유의사항을 짧게 안내하세요.' },
   'caption-grid': { lead: '사진 4장과 짧은 캡션을 2단 그리드로 보여 주는 포인트 소개 블록입니다.', eyebrow: '상단 아이콘', title: '그리드 제목', body: '보조 설명', eyebrowPlaceholder: '예: ☂', titlePlaceholder: '예: 리조트 집중 포인트', bodyPlaceholder: '필요할 때만 짧은 설명을 입력하세요.' },
-  'menu-zigzag': { lead: '이미지와 설명을 좌우 카드로 구성하는 블록입니다. 각 항목에서 이미지·텍스트 위치를 반전할 수 있습니다.', eyebrow: 'Category Label', title: '제목', body: '본문', eyebrowPlaceholder: '예: 도쿄', titlePlaceholder: '예: 도쿄 미식 추천 메뉴', bodyPlaceholder: '필요할 때만 짧은 설명을 입력하세요.' },
+  'menu-zigzag': { lead: '이미지와 설명을 좌우로 보여 주는 블록입니다. 항목마다 이미지와 텍스트 위치를 바꿀 수 있습니다.', eyebrow: 'Category Label', title: '제목', body: '본문', eyebrowPlaceholder: '예: 도쿄', titlePlaceholder: '예: 도쿄 미식 추천 메뉴', bodyPlaceholder: '필요할 때만 짧은 설명을 입력하세요.' },
   timeline: { lead: '대표 이미지와 시간축을 함께 보여 주는 장거리·테마 일정 블록입니다.', eyebrow: 'Category Label', title: '제목', body: '본문', eyebrowPlaceholder: '예: CHOCOLATE TRAIN', titlePlaceholder: '예: 스위스 패밀리 금까기', bodyPlaceholder: '일정 전체를 소개하는 핵심 내용을 입력하세요.' },
 }
 
@@ -87,6 +89,9 @@ export default function App() {
   const [exportOpen, setExportOpen] = useState(false)
   const [fileMenuOpen, setFileMenuOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [onboardingOpen, setOnboardingOpen] = useState(false)
+  const [onboardingStep, setOnboardingStep] = useState(0)
   const [briefStudioOpen, setBriefStudioOpen] = useState(false)
   const [mobilePanel, setMobilePanel] = useState<'left' | 'right' | null>(null)
   const [imageTarget, setImageTarget] = useState<ImageTarget>(null)
@@ -122,6 +127,11 @@ export default function App() {
     })
   }, [])
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(''), 2200); return () => clearTimeout(timer) }, [toast])
+  useEffect(() => {
+    if (!ready || readOnly || localStorage.getItem(ONBOARDING_STORAGE_KEY) === 'done') return
+    setOnboardingStep(0)
+    setOnboardingOpen(true)
+  }, [ready, readOnly])
   useEffect(() => {
     if (!fileMenuOpen) return
     const closeOnOutsideClick = (event: MouseEvent) => {
@@ -339,11 +349,11 @@ export default function App() {
     setToast(`${dayIndex + 1}일차를 삭제했습니다.`)
   }
   function insertPresetItem(sectionId: string, index: number, placement: 'above' | 'below') { let nextIndex = -1; commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || !isItemPreset(section.type)) return; const insertAt = Math.max(0, index + (placement === 'below' ? 1 : 0)); if (section.type === 'table') { const headers = section.tableHeaders?.length ? section.tableHeaders : ['구분', '내용']; const rows = section.tableRows || []; section.tableRows = [...rows.slice(0, insertAt), headers.map((_, column) => column === 0 ? nextDayLabel(rows) : ''), ...rows.slice(insertAt)]; nextIndex = insertAt } else if (section.type === 'icon-card') { const cards = section.iconCards || []; section.iconCards = [...cards.slice(0, insertAt), newIconCard(), ...cards.slice(insertAt)]; nextIndex = insertAt } else { const previousItems = section.items; const previousReversed = previousItems.map((_, itemIndex) => Boolean(section.menuItemReversed?.[itemIndex])); section.mediaIds = REFERENCE_LAYOUT_TYPES.has(section.type) ? normalizeReferenceMediaSlots(section.type, previousItems, section.mediaIds) : section.mediaIds; section.items = [...previousItems.slice(0, insertAt), newPresetItem(section.type), ...previousItems.slice(insertAt)]; if (section.type === 'menu-zigzag') section.menuItemReversed = [...previousReversed.slice(0, insertAt), false, ...previousReversed.slice(insertAt)]; if (section.type === 'timeline') section.timelineDayStarts = (section.timelineDayStarts || []).map(start => start > insertAt ? start + 1 : start); if (REFERENCE_LAYOUT_TYPES.has(section.type)) section.mediaIds.splice(referenceMediaSlot(section.type, insertAt), 0, ''); nextIndex = insertAt } }); if (nextIndex >= 0) { selectSectionItem(sectionId, nextIndex); setToast(placement === 'above' ? '위에 항목을 추가했습니다.' : '아래에 항목을 추가했습니다.') } }
-  function duplicatePresetItem(sectionId: string, index: number) { let nextIndex = -1; commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || !isItemPreset(section.type)) return; const insertAt = index + 1; if (section.type === 'table') { const rows = section.tableRows || []; const row = rows[index]; if (!row) return; section.tableRows = [...rows.slice(0, insertAt), [...row], ...rows.slice(insertAt)]; nextIndex = insertAt } else if (section.type === 'icon-card') { const cards = section.iconCards || []; const card = cards[index]; if (!card) return; section.iconCards = [...cards.slice(0, insertAt), cloneIconCard(card), ...cards.slice(insertAt)]; nextIndex = insertAt } else { const value = section.items[index]; if (value === undefined) return; const reversed = section.items.map((_, itemIndex) => Boolean(section.menuItemReversed?.[itemIndex])); section.mediaIds = REFERENCE_LAYOUT_TYPES.has(section.type) ? normalizeReferenceMediaSlots(section.type, section.items, section.mediaIds) : section.mediaIds; section.items = [...section.items.slice(0, insertAt), value, ...section.items.slice(insertAt)]; if (section.type === 'menu-zigzag') section.menuItemReversed = [...reversed.slice(0, insertAt), reversed[index], ...reversed.slice(insertAt)]; if (REFERENCE_LAYOUT_TYPES.has(section.type)) { const slot = referenceMediaSlot(section.type, index); section.mediaIds.splice(slot + 1, 0, section.mediaIds[slot] || '') } nextIndex = insertAt } }); if (nextIndex >= 0) { selectSectionItem(sectionId, nextIndex); setToast('항목을 복제했습니다.') } }
+  function duplicatePresetItem(sectionId: string, index: number) { let nextIndex = -1; commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || !isItemPreset(section.type)) return; const insertAt = index + 1; if (section.type === 'table') { const rows = section.tableRows || []; const row = rows[index]; if (!row) return; section.tableRows = [...rows.slice(0, insertAt), [...row], ...rows.slice(insertAt)]; nextIndex = insertAt } else if (section.type === 'icon-card') { const cards = section.iconCards || []; const card = cards[index]; if (!card) return; section.iconCards = [...cards.slice(0, insertAt), cloneIconCard(card), ...cards.slice(insertAt)]; nextIndex = insertAt } else { const value = section.items[index]; if (value === undefined) return; const reversed = section.items.map((_, itemIndex) => Boolean(section.menuItemReversed?.[itemIndex])); section.mediaIds = REFERENCE_LAYOUT_TYPES.has(section.type) ? normalizeReferenceMediaSlots(section.type, section.items, section.mediaIds) : section.mediaIds; section.items = [...section.items.slice(0, insertAt), value, ...section.items.slice(insertAt)]; if (section.type === 'menu-zigzag') section.menuItemReversed = [...reversed.slice(0, insertAt), reversed[index], ...reversed.slice(insertAt)]; if (section.type === 'timeline') section.timelineDayStarts = (section.timelineDayStarts || []).map(start => start > index ? start + 1 : start); if (REFERENCE_LAYOUT_TYPES.has(section.type)) { const slot = referenceMediaSlot(section.type, index); section.mediaIds.splice(slot + 1, 0, section.mediaIds[slot] || '') } nextIndex = insertAt } }); if (nextIndex >= 0) { selectSectionItem(sectionId, nextIndex); setToast('항목을 복제했습니다.') } }
   function updatePresetItem(sectionId: string, index: number, value: string | string[] | Partial<IconCardItem>) { commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section) return; if (section.type === 'table' && Array.isArray(value)) section.tableRows = (section.tableRows || []).map((row, rowIndex) => rowIndex === index ? value : row); else if (section.type === 'icon-card' && !Array.isArray(value) && typeof value !== 'string') section.iconCards = (section.iconCards || []).map((card, itemIndex) => itemIndex === index ? { ...card, ...value } : card); else if (typeof value === 'string') section.items = section.items.map((item, itemIndex) => itemIndex === index ? value : item) }) }
   function movePresetItem(sectionId: string, index: number, direction: -1 | 1) { commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || !isItemPreset(section.type)) return; const values = section.type === 'table' ? section.tableRows || [] : section.type === 'icon-card' ? section.iconCards || [] : section.items; const target = index + direction; if (target < 0 || target >= values.length) return; [values[index], values[target]] = [values[target], values[index]]; if (section.type === 'table') section.tableRows = [...values as string[][]]; else if (section.type === 'icon-card') section.iconCards = [...values as IconCardItem[]]; else { section.items = [...values as string[]]; if (section.type === 'menu-zigzag') { const reversed = section.items.map((_, itemIndex) => Boolean(section.menuItemReversed?.[itemIndex])); [reversed[index], reversed[target]] = [reversed[target], reversed[index]]; section.menuItemReversed = reversed } if (REFERENCE_LAYOUT_TYPES.has(section.type)) { section.mediaIds = normalizeReferenceMediaSlots(section.type, values as string[], section.mediaIds); const fromSlot = referenceMediaSlot(section.type, index); const targetSlot = referenceMediaSlot(section.type, target); [section.mediaIds[fromSlot], section.mediaIds[targetSlot]] = [section.mediaIds[targetSlot], section.mediaIds[fromSlot]] } } }); setSelectedItemIndex(Math.max(0, index + direction)); setSelectedSpecialMediaIndex(null) }
   function toggleMenuItemLayout(sectionId: string, index: number) { commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || section.type !== 'menu-zigzag') return; const layout = section.items.map((_, itemIndex) => Boolean(section.menuItemReversed?.[itemIndex])); layout[index] = !layout[index]; section.menuItemReversed = layout }); setToast('이미지와 텍스트 위치를 반전했습니다.') }
-  function deletePresetItem(sectionId: string, index: number) { let nextIndex: number | null = null; commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || !isItemPreset(section.type)) return; if (section.type === 'table') { const rows = (section.tableRows || []).filter((_, rowIndex) => rowIndex !== index); section.tableRows = rows; nextIndex = rows.length ? Math.min(index, rows.length - 1) : null } else if (section.type === 'icon-card') { const cards = (section.iconCards || []).filter((_, itemIndex) => itemIndex !== index); section.iconCards = cards; nextIndex = cards.length ? Math.min(index, cards.length - 1) : null } else { const reversed = section.items.map((_, itemIndex) => Boolean(section.menuItemReversed?.[itemIndex])); section.mediaIds = REFERENCE_LAYOUT_TYPES.has(section.type) ? normalizeReferenceMediaSlots(section.type, section.items, section.mediaIds) : section.mediaIds; if (REFERENCE_LAYOUT_TYPES.has(section.type)) section.mediaIds.splice(referenceMediaSlot(section.type, index), 1); const items = section.items.filter((_, itemIndex) => itemIndex !== index); section.items = items; if (section.type === 'menu-zigzag') section.menuItemReversed = reversed.filter((_, itemIndex) => itemIndex !== index); nextIndex = items.length ? Math.min(index, items.length - 1) : null } }); setSelectedItemIndex(nextIndex); setSelectedSpecialMediaIndex(null); setToast('항목을 삭제했습니다.') }
+  function deletePresetItem(sectionId: string, index: number) { let nextIndex: number | null = null; commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || !isItemPreset(section.type)) return; if (section.type === 'table') { const rows = (section.tableRows || []).filter((_, rowIndex) => rowIndex !== index); section.tableRows = rows; nextIndex = rows.length ? Math.min(index, rows.length - 1) : null } else if (section.type === 'icon-card') { const cards = (section.iconCards || []).filter((_, itemIndex) => itemIndex !== index); section.iconCards = cards; nextIndex = cards.length ? Math.min(index, cards.length - 1) : null } else { const previousItems = section.items; const reversed = previousItems.map((_, itemIndex) => Boolean(section.menuItemReversed?.[itemIndex])); section.mediaIds = REFERENCE_LAYOUT_TYPES.has(section.type) ? normalizeReferenceMediaSlots(section.type, previousItems, section.mediaIds) : section.mediaIds; if (REFERENCE_LAYOUT_TYPES.has(section.type)) section.mediaIds.splice(referenceMediaSlot(section.type, index), 1); const items = previousItems.filter((_, itemIndex) => itemIndex !== index); section.items = items; if (section.type === 'menu-zigzag') section.menuItemReversed = reversed.filter((_, itemIndex) => itemIndex !== index); if (section.type === 'timeline') section.timelineDayStarts = timelineDayStartsAfterItemRemoval(section.timelineDayStarts?.length ? section.timelineDayStarts : [0], previousItems.length, index); nextIndex = items.length ? Math.min(index, items.length - 1) : null } }); setSelectedItemIndex(nextIndex); setSelectedSpecialMediaIndex(null); setToast('항목을 삭제했습니다.') }
   function createContentGroup(sectionIds: string[]) {
     commit(draft => {
       const orderedIds = draft.sections.filter(section => sectionIds.includes(section.id)).map(section => section.id)
@@ -434,7 +444,13 @@ export default function App() {
   function importManifest(file?: File) {
     if (!file || readOnly) return; file.text().then(async text => { try { const parsed = file.name.endsWith('.json') ? JSON.parse(text) : YAML.parse(text); const seed = createSeedProject(); if (isDirectProjectPayload(parsed)) { const result = migrateProject(parsed); await saveMigrationBackup(result); const direct = normalizeProject(result.project); setHistory(h => [...h, deepCopy(project)]); setProject(direct); setSelectedId(direct.sections[0]?.id || ''); setToast(result.migrated ? '이전 프로젝트를 최신 형식으로 안전하게 변환했습니다.' : '프로젝트를 불러왔습니다.'); return } const next: Project = normalizeProject({ ...seed, id: parsed.id || seed.id, name: parsed.name || seed.name, layout: parsed.layout || seed.layout, category: parsed.category || seed.category, deliveryStage: parsed.delivery_stage || seed.deliveryStage, page: { ...seed.page, ...(parsed.page || {}) }, campaign: parsed.campaign || seed.campaign, sections: (parsed.sections || []).map((s: Partial<Section>) => ({ ...makeSection(normalizeSectionType(s.type)), ...s, type: normalizeSectionType(s.type), id: s.id || crypto.randomUUID(), mediaIds: (s as unknown as { media?: string[] }).media || s.mediaIds || [], mediaLayoutItems: (s as unknown as { media_layout_items?: MediaLayoutItem[] }).media_layout_items || s.mediaLayoutItems || [], contentLayout: (s as unknown as { content_layout?: Section['contentLayout'] }).content_layout || s.contentLayout || 'text-top', layoutBoxes: (s as unknown as { layout_boxes?: BlockBox[] }).layout_boxes || s.layoutBoxes || [], tableHeaders: (s as unknown as { table_headers?: string[] }).table_headers || s.tableHeaders || [], tableRows: (s as unknown as { table_rows?: string[][] }).table_rows || s.tableRows || [], iconCards: (s as unknown as { icon_cards?: IconCardItem[] }).icon_cards || s.iconCards || [] })), assets: (parsed.media || []).map((a: Record<string, string>) => ({ id: a.id || crypto.randomUUID(), name: a.src || 'image.jpg', src: '', provider: a.provider || 'provided', sourceId: a.source_id || '', assetStage: a.asset_stage || 'reference', usageScope: a.usage_scope || '', rightsStatus: a.rights_status || 'unknown', qualityGrade: a.quality_grade || 'B', approval: a.approval || 'pending', evidence: a.evidence || '', alt: a.alt || '' })) } as Project); setHistory(h => [...h, deepCopy(project)]); setProject(next); setSelectedId(next.sections[0]?.id || ''); setToast('매니페스트를 불러왔습니다.') } catch (error) { setToast(error instanceof Error ? error.message : '파일 형식을 확인해 주세요.') } })
   }
-  function newProject() { const next = createSeedProject(); setProjects(current => [next, ...current]); setProject(next); setSelectedId(''); setHistory([]); setFuture([]); setProjectBoardOpen(false); setToast('빈 캔버스를 만들었습니다.') }
+  function newProject() { const next = createSeedProject(); setProjects(current => [next, ...current]); setProject(next); setSelectedId(''); setSelectedBoxId(''); setSelectedItemIndex(null); setSelectedSpecialMediaIndex(null); setHistory([]); setFuture([]); setLeftTab('blocks'); setProjectBoardOpen(false); setToast('빈 캔버스를 만들었습니다.') }
+  function openNewBlankCanvas() { if (!window.confirm('새 빈 캔버스를 시작할까요?\n현재 작업은 이 PC에 자동 저장되어 프로젝트에서 다시 열 수 있습니다.')) return; newProject() }
+  function startBlankCanvas() { setLeftTab('blocks'); setBlockPickerOpen(true) }
+  function startSampleProject() { const next = createSampleProject(); setProjects(current => [next, ...current]); setProject(next); setSelectedId(next.sections[0]?.id || ''); setSelectedBoxId(''); setSelectedItemIndex(null); setHistory([]); setFuture([]); setLeftTab('blocks'); setToast('편집 가능한 샘플 기획안을 열었습니다.') }
+  function completeOnboarding(dontShowAgain = false) { if (dontShowAgain) localStorage.setItem(ONBOARDING_STORAGE_KEY, 'done'); setOnboardingOpen(false) }
+  function changeOnboardingStep(step: number) { setOnboardingStep(step); if (step === 0) setLeftTab('blocks'); if (step === 2) setLeftTab('images'); if (step === 3) setLeftTab('layers') }
+  function reopenOnboarding() { setHelpOpen(false); changeOnboardingStep(0); setOnboardingOpen(true) }
   function openProject(next: Project) { setProject(normalizeProject(next)); setSelectedId(next.sections[0]?.id || ''); setHistory([]); setFuture([]); setProjectBoardOpen(false) }
   function duplicateProject(source: Project) { const next = deepCopy(source); next.id = crypto.randomUUID(); next.name = `${source.name} 복사본`; next.updatedAt = new Date().toISOString(); next.campaign.campaign_id = next.id; next.campaign.product_name = next.name; next.campaign.tracking.promotion_id = next.id; setProjects(current => [next, ...current]); setProject(next); setSelectedId(next.sections[0]?.id || ''); setProjectBoardOpen(false); setToast('프로젝트를 복제했습니다.') }
   function removeProject(id: string) { if (projects.length <= 1) { setToast('마지막 프로젝트는 삭제할 수 없습니다.'); return } if (!confirm('이 기획안을 삭제할까요? 내보낸 JSON 파일은 유지됩니다.')) return; const next = projects.filter(item => item.id !== id); const nextFiles = Object.fromEntries(Object.entries(projectFilesRef.current).filter(([projectId]) => projectId !== id)); projectFilesRef.current = nextFiles; setProjectFiles(nextFiles); setProjects(next); if (project.id === id) openProject(next[0]); saveWorkspace({ activeId: project.id === id ? next[0].id : project.id, projects: next, projectFiles: nextFiles }); }
@@ -454,15 +470,15 @@ export default function App() {
   if (!ready) return <div className="loading"><div className="brand-mark brand-logo"><img src={BRAND_LOGO} alt="내일투어"/></div><p>캔버스를 준비하는 중…</p></div>
   return <div className={`app-shell ${readOnly ? 'is-readonly' : ''} ${leftTab === 'images' ? 'image-library-expanded' : ''}`}>
     <header className="topbar">
-      <div className="brand"><div className="brand-mark brand-logo"><img src={BRAND_LOGO} alt="내일투어"/></div><div><strong>내일스패셜 메이킹 스튜디오</strong><span>{readOnly ? 'Read-only handoff' : 'Making studio'}</span></div></div>
+      <div className="brand"><button className="brand-mark brand-logo" type="button" aria-label="새 빈 캔버스 열기" title="새 빈 캔버스 열기" onClick={openNewBlankCanvas}><img src={BRAND_LOGO} alt="내일투어"/></button><div><strong>내일스패셜 메이킹 스튜디오</strong><span>{readOnly ? 'Read-only handoff' : `Making studio · v${APP_VERSION}`}</span></div></div>
       <div className="project-title"><input aria-label="프로젝트 이름" value={project.name} onChange={e => commit(d => { d.name = e.target.value })}/><span>{savedAt ? `자동 저장됨 ${savedAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}` : '저장 준비 중'}</span></div>
       <div className="toolbar-actions">
         {!readOnly && <div className="file-wrap"><button className="ghost-button" onClick={() => setFileMenuOpen(open => !open)}><Save size={16}/> 파일 <ChevronDown size={14}/></button>{fileMenuOpen && <FileMenu hasLinkedFile={Boolean(projectFiles[project.id])} onImport={() => { setFileMenuOpen(false); importRef.current?.click() }} onSave={() => { setFileMenuOpen(false); void saveProjectFile() }} onSaveAs={() => { setFileMenuOpen(false); void saveProjectFile(true) }} onClose={() => { setFileMenuOpen(false); requestAppClose() }}/>}</div>}
         <button className="icon-button mobile-only" aria-label="왼쪽 패널" onClick={() => setMobilePanel('left')}><Menu size={18}/></button>
         <button className="icon-button" aria-label="실행 취소" disabled={!history.length} onClick={undo}><Undo2 size={18}/></button>
         <button className="icon-button" aria-label="다시 실행" disabled={!future.length} onClick={redo}><Redo2 size={18}/></button>
-        <button className="ghost-button" onClick={() => setPreviewOpen(true)}><Eye size={16}/> 미리보기</button>
-        <div className="export-wrap"><button className="primary-button" onClick={() => setExportOpen(!exportOpen)}><Download size={16}/> 내보내기 <ChevronDown size={14}/></button>{exportOpen && <ExportMenu onExport={doExport}/>}</div>
+        <div className="tour-output-actions" data-guide="output"><button className="ghost-button" onClick={() => setPreviewOpen(true)}><Eye size={16}/> 미리보기</button>
+        <div className="export-wrap"><button className="primary-button" onClick={() => setExportOpen(!exportOpen)}><Download size={16}/> 내보내기 <ChevronDown size={14}/></button>{exportOpen && <ExportMenu onExport={doExport}/>}</div></div>
         <button className="icon-button mobile-only" aria-label="오른쪽 패널" onClick={() => setMobilePanel('right')}><Settings2 size={18}/></button>
       </div>
     </header>
@@ -470,13 +486,13 @@ export default function App() {
     <aside className={`left-panel ${mobilePanel === 'left' ? 'mobile-open' : ''}`}>
       <PanelClose onClick={() => setMobilePanel(null)}/>
       <nav className="rail" aria-label="편집 도구">
-        <RailButton active={leftTab === 'blocks'} label="블록" icon={<Blocks/>} onClick={() => setLeftTab('blocks')}/>
-        <RailButton active={leftTab === 'images'} label="이미지" icon={<ImageIcon/>} onClick={() => setLeftTab('images')}/>
-        <RailButton active={leftTab === 'layers'} label="레이어" icon={<Layers/>} onClick={() => setLeftTab('layers')}/>
+        <RailButton active={leftTab === 'blocks'} label="블록" icon={<Blocks/>} onClick={() => setLeftTab('blocks')} guide="block-tab"/>
+        <RailButton active={leftTab === 'images'} label="이미지" icon={<ImageIcon/>} onClick={() => setLeftTab('images')} guide="image-tab"/>
+        <RailButton active={leftTab === 'layers'} label="레이어" icon={<Layers/>} onClick={() => setLeftTab('layers')} guide="layer-tab"/>
         <div className="rail-spacer"/>
-        <RailButton label="도움말" icon={<CircleHelp/>} onClick={() => setToast('블록을 추가하고, 캔버스에서 선택한 뒤 오른쪽에서 내용을 편집하세요.')}/>
+        <RailButton label="도움말" icon={<CircleHelp/>} onClick={() => setHelpOpen(true)}/>
       </nav>
-      <div className="library">
+      <div className="library" data-guide={leftTab === 'blocks' ? 'block-library' : leftTab === 'images' ? 'image-panel' : undefined}>
         {leftTab === 'blocks' && <BlockLibrary onAdd={addSection}/>} 
         {leftTab === 'images' && <ImageLibrary assets={project.assets} selected={selected} selectedBox={selectedBox} selectedSpecialMediaIndex={selectedSpecialMediaIndex} onUpload={() => requestImageUpload(selected ? { sectionId: selected.id, boxId: selectedBox?.kind === 'media' || selectedBox?.kind === 'image' ? selectedBox.id : 'media', specialMediaIndex: REFERENCE_LAYOUT_TYPES.has(selected.type) ? selectedSpecialMediaIndex ?? undefined : undefined } : null)} onAddUrl={url => addImageUrl(url)} onConnect={connectAsset}/>} 
         {leftTab === 'layers' && <LayerList sections={project.sections} groups={project.contentGroups || []} selectedId={selectedId} onSelect={focusLayerSection} onMove={moveSection} onCreateGroup={createContentGroup} onUpdateGroup={updateContentGroup} onMoveGroup={moveContentGroup} onUngroup={ungroupContent}/>} 
@@ -487,9 +503,10 @@ export default function App() {
       <div className="workspace-head"><span>{CANVAS_WIDTH}px PC 전용 양식 · {project.category}</span>{readOnly && <strong className="readonly-label"><Eye size={13}/> 디자이너 읽기 전용</strong>}</div>
       <div className="canvas-scroll">
         <div className="canvas-scale" style={{ width: `${CANVAS_WIDTH}px`, transform: `scale(${zoom / ZOOM_REFERENCE})`, marginBottom: `${(zoom / ZOOM_REFERENCE - 1) * 900}px` }}>
-          <div ref={artboardRef} className="artboard viewport-720" data-testid="artboard">
+          <div ref={artboardRef} className="artboard viewport-720" data-testid="artboard" data-guide="canvas">
+            <PageCover project={project} onStartBlank={startBlankCanvas} onStartSample={startSampleProject} onImport={() => importRef.current?.click()}/>
             {project.sections.map((section, index) => <SectionView key={section.id} section={section} assets={project.assets} selected={section.id === selectedId} readOnly={readOnly} activeBoxId={section.id === selectedId ? selectedBoxId : ''} activeItemIndex={section.id === selectedId ? selectedItemIndex : null} activeSpecialMediaIndex={section.id === selectedId ? selectedSpecialMediaIndex : null} index={index} total={project.sections.length} onSelect={() => focusSection(section)} onSelectBox={boxId => selectSectionBox(section.id, boxId)} onSelectItem={itemIndex => selectSectionItem(section.id, itemIndex)} onSelectSpecialMedia={mediaIndex => selectSpecialMedia(section.id, mediaIndex)} onClearTimelineMedia={clearTimelineMedia} onSetTimelineHeroVisible={setTimelineHeroVisible} onDeleteTimelineDay={deleteTimelineDay} onSectionChange={patch => updateSectionById(section.id, patch)} onBoxChange={(boxId, patch) => updateLayoutBox(section.id, boxId, patch)} onUpdateItem={(itemIndex, value) => updatePresetItem(section.id, itemIndex, value)} onAddFlowBox={addLayoutBox} onMoveFlowBox={moveImageFlowBox} onDeleteFlowBox={deleteLayoutBox} onAddItem={addPresetItem} onAddTimelineDay={addTimelineDay} onInsertItem={insertPresetItem} onDuplicateItem={duplicatePresetItem} onMoveItem={movePresetItem} onDeleteItem={deletePresetItem} onToggleMenuItemLayout={toggleMenuItemLayout} onMove={moveSection} onDuplicate={duplicateSection} onDelete={deleteSection} onSwapMedia={swapSectionMedia}/>) }
-            <button className="add-end" onClick={() => setBlockPickerOpen(true)}><Plus size={18}/> 다음 블록 추가</button>
+            <button className="add-end" data-guide="block-add" onClick={() => setBlockPickerOpen(true)}><Plus size={18}/> 다음 블록 추가</button>
           </div>
         </div>
       </div>
@@ -505,6 +522,8 @@ export default function App() {
     <input ref={importRef} type="file" accept=".json,.yml,.yaml" hidden onChange={e => importManifest(e.target.files?.[0])}/>
     {blockPickerOpen && <BlockPicker onClose={() => setBlockPickerOpen(false)} onSelect={addSection}/>} 
     {previewOpen && <PreviewModal project={project} onClose={() => setPreviewOpen(false)}/>}
+    {helpOpen && <HelpDrawer version={APP_VERSION} onClose={() => setHelpOpen(false)} onReplay={reopenOnboarding} onOpenBlocks={() => { setHelpOpen(false); setLeftTab('blocks'); setBlockPickerOpen(true) }} onImport={() => { setHelpOpen(false); importRef.current?.click() }}/>}
+    {onboardingOpen && <GuidedTour step={onboardingStep} onStep={changeOnboardingStep} onSkip={() => completeOnboarding(false)} onDontShowAgain={() => completeOnboarding(true)} onFinish={() => completeOnboarding(true)}/>}
     {toast && <div className="toast"><Check size={16}/>{toast}</div>}
   </div>
 }
@@ -544,8 +563,55 @@ function BriefStudio({ project, workspace, onClose, onProductChange, onWorkspace
 }
 
 function PanelClose({ onClick }: { onClick: () => void }) { return <button className="panel-close" aria-label="패널 닫기" onClick={onClick}><X/></button> }
-function RailButton({ active, label, icon, onClick }: { active?: boolean; label: string; icon: React.ReactNode; onClick: () => void }) { return <button className={active ? 'active' : ''} onClick={onClick}>{icon}<span>{label}</span></button> }
+function RailButton({ active, label, icon, onClick, guide }: { active?: boolean; label: string; icon: React.ReactNode; onClick: () => void; guide?: string }) { return <button className={active ? 'active' : ''} data-guide={guide} onClick={onClick}>{icon}<span>{label}</span></button> }
 function BlockLibrary({ onAdd }: { onAdd: (type: SectionType) => void }) { return <div className="block-groups">{GROUPS.map((group, index) => <section key={group.name || index}>{group.name && <h3>{group.name}</h3>}<div>{group.types.map(type => <button key={type} onClick={() => onAdd(type)}><BlockIcon type={type}/><span>{SECTION_LABELS[type]}</span><Plus/></button>)}</div></section>)}</div> }
+
+const ONBOARDING_STEPS = [
+  { icon: <Blocks/>, eyebrow: '01 · BLOCKS', title: '블록을 추가해 보세요', body: '텍스트, 이미지, 일정표처럼 담을 내용을 골라 캔버스에 추가하세요.', targets: ['[data-guide="block-library"]', '[data-guide="block-tab"]', '[data-guide="block-add"]'] },
+  { icon: <FileText/>, eyebrow: '02 · COPY', title: '문구를 바로 고쳐 보세요', body: '카테고리 라벨, 제목, 본문을 더블클릭하면 그 자리에서 수정할 수 있습니다.', targets: ['[data-guide="copy-area"]', '[data-guide="canvas"]'] },
+  { icon: <ImageIcon/>, eyebrow: '03 · IMAGE', title: '이미지를 등록해 보세요', body: '이 패널에서 내 PC의 이미지 파일을 올리거나 이미지 URL을 붙여 넣으세요. 등록한 이미지는 다른 블록에서도 다시 사용할 수 있습니다.', targets: ['[data-guide="image-panel"]', '[data-guide="image-box"]', '[data-guide="image-tab"]'] },
+  { icon: <Layers/>, eyebrow: '04 · LAYERS', title: '블록 순서를 정리하세요', body: '레이어에서 블록의 순서와 묶음을 관리합니다. 위·아래 이동으로 순서를 바꾸고, 이어지는 블록은 그룹으로 묶어 보세요.', targets: ['[data-guide="layer-tab"]'] },
+  { icon: <Download/>, eyebrow: '05 · OUTPUT', title: '확인한 뒤 내보내세요', body: '미리보기로 전체를 확인한 다음 독립 HTML, 로드용 JSON, 디자이너 전달 ZIP으로 내보냅니다.', targets: ['[data-guide="output"]'] },
+]
+
+function GuidedTour({ step, onStep, onSkip, onDontShowAgain, onFinish }: { step: number; onStep: (step: number) => void; onSkip: () => void; onDontShowAgain: () => void; onFinish: () => void }) {
+  const [targetRect, setTargetRect] = useState<DOMRect | null>(null)
+  const current = ONBOARDING_STEPS[step]
+  const last = step === ONBOARDING_STEPS.length - 1
+  useEffect(() => {
+    let target: HTMLElement | null = null
+    const refreshTarget = () => {
+      target = current.targets.map(selector => document.querySelector<HTMLElement>(selector)).find(Boolean) || null
+      if (!target) { setTargetRect(null); return }
+      target.classList.add('guided-tour-target')
+      setTargetRect(target.getBoundingClientRect())
+    }
+    const frame = window.requestAnimationFrame(() => window.requestAnimationFrame(refreshTarget))
+    window.addEventListener('resize', refreshTarget)
+    window.addEventListener('scroll', refreshTarget, true)
+    return () => { window.cancelAnimationFrame(frame); window.removeEventListener('resize', refreshTarget); window.removeEventListener('scroll', refreshTarget, true); target?.classList.remove('guided-tour-target') }
+  }, [current])
+  const popoverWidth = 330
+  const centerX = targetRect ? targetRect.left + targetRect.width / 2 : window.innerWidth / 2
+  const left = Math.max(16, Math.min(window.innerWidth - popoverWidth - 16, centerX - popoverWidth / 2))
+  const placeAbove = Boolean(targetRect && targetRect.bottom > window.innerHeight - 250)
+  const top = targetRect ? Math.max(16, placeAbove ? targetRect.top - 222 : targetRect.bottom + 16) : Math.max(80, window.innerHeight / 2 - 150)
+  const spotlightStyle = targetRect ? { left: targetRect.left - 6, top: targetRect.top - 6, width: targetRect.width + 12, height: targetRect.height + 12 } : undefined
+  return <div className="guided-tour" role="presentation"><div className="guided-tour-shade"/>{targetRect && <div className="guided-tour-spotlight" style={spotlightStyle}/>}<section className={`guided-tour-card ${placeAbove ? 'above' : ''}`} style={{ left, top }} role="dialog" aria-modal="true" aria-labelledby="onboarding-title"><header><div><p>{current.eyebrow}</p><h2 id="onboarding-title">{current.title}</h2></div><button className="icon-button" aria-label="안내 건너뛰기" onClick={onSkip}><X/></button></header><div className="guided-tour-progress" aria-label={`${step + 1} / ${ONBOARDING_STEPS.length} 단계`}>{ONBOARDING_STEPS.map((item, index) => <span key={item.eyebrow} className={index === step ? 'active' : index < step ? 'done' : ''}>{String(index + 1).padStart(2, '0')}</span>)}</div><article><i>{current.icon}</i><p>{current.body}</p></article><footer><button className="subtle-button" onClick={onSkip}>건너뛰기</button><button className="subtle-button onboarding-hide" onClick={onDontShowAgain}>다시 보지 않기</button><div><button className="ghost-button" disabled={step === 0} onClick={() => onStep(step - 1)}>이전</button><button className="primary-button" onClick={() => last ? onFinish() : onStep(step + 1)}>{last ? '완료' : '다음'}</button></div></footer></section></div>
+}
+
+function HelpDrawer({ version, onClose, onReplay, onOpenBlocks, onImport }: { version: string; onClose: () => void; onReplay: () => void; onOpenBlocks: () => void; onImport: () => void }) {
+  const guides = [
+    { icon: <Blocks/>, title: '새 기획안 만들기', body: '빈 기획안에서 시작하거나, 샘플 기획안을 열어 블록을 수정하며 연습합니다.', action: '블록 고르기', onClick: onOpenBlocks },
+    { icon: <ArrowLeftRight/>, title: '블록 추가·순서 변경', body: '블록은 하단의 다음 블록 추가로 넣고, 선택한 블록 위의 화살표로 순서를 바꿉니다.' },
+    { icon: <FileText/>, title: '문구 수정', body: '가운데 카테고리 라벨·제목·본문을 더블클릭하면 바로 수정됩니다.' },
+    { icon: <ImageIcon/>, title: '이미지 연결·교체', body: '가운데 이미지 칸을 먼저 클릭한 뒤 왼쪽 이미지 탭에서 내 PC 파일을 올리거나 이미지 URL을 붙여 넣습니다.' },
+    { icon: <CalendarDays/>, title: '상세 일정 만들기', body: '상세 일정표에서는 일정 추가로 한 줄을 넣고, 일차 추가로 새로운 날짜 구간을 만듭니다.' },
+    { icon: <Archive/>, title: '디자이너 전달 ZIP 만들기', body: '내보내기에서 디자이너 전달 ZIP을 선택하면 HTML, 이미지, 로드용 JSON을 한 번에 묶습니다.' },
+    { icon: <FileJson/>, title: '로드 JSON 불러오기', body: '받은 프로젝트 로드 JSON 파일을 파일 > 불러오기로 열면 캔버스에 초안이 바로 표시됩니다.', action: 'JSON 불러오기', onClick: onImport },
+  ]
+  return <><button className="help-scrim" aria-label="도움말 닫기" onClick={onClose}/><aside className="help-drawer" role="dialog" aria-modal="true" aria-labelledby="help-title"><header><div><p>QUICK HELP</p><h2 id="help-title">작업 도움말</h2></div><button className="icon-button" aria-label="도움말 닫기" onClick={onClose}><X/></button></header><div className="help-guide-list">{guides.map(guide => <article key={guide.title}><i>{guide.icon}</i><div><b>{guide.title}</b><p>{guide.body}</p>{guide.action && <button onClick={guide.onClick}>{guide.action} <ChevronDown/></button>}</div></article>)}</div><footer><button className="ghost-button" onClick={onReplay}><CircleHelp/> 처음 안내 다시 보기</button><span>앱 버전 v{version}</span></footer></aside></>
+}
 
 function BlockPicker({ onClose, onSelect }: { onClose: () => void; onSelect: (type: SectionType) => void }) { return <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}><section className="block-picker" role="dialog" aria-modal="true" aria-labelledby="block-picker-title"><header><div><p>ADD BLOCK</p><h2 id="block-picker-title">다음 블록 선택</h2></div><button aria-label="닫기" onClick={onClose}><X/></button></header><p>추가할 블록을 선택하세요. 선택한 블록은 시안의 마지막에 바로 추가됩니다.</p><div>{GROUPS.map((group, index) => <section key={group.name || index}>{group.name && <h3>{group.name}</h3>}<div className="block-picker-grid">{group.types.map(type => <button key={type} onClick={() => onSelect(type)}><BlockIcon type={type}/><span>{SECTION_LABELS[type]}</span><small>{type === 'text' ? '문단을 이어 쓰는 기본 블록' : type === 'image' ? '텍스트와 이미지를 순서대로 구성' : type === 'list' ? '일반·특전형 목록 전환' : type === 'table' ? 'DAY 순서로 작성하는 일정' : type === 'timeline' ? '시간과 이미지로 구성하는 상세 일정' : type === 'menu-zigzag' ? '이미지와 설명을 나란히 구성' : '전용 레이아웃 블록'}</small></button>)}</div></section>)}</div></section></div> }
 function BlockIcon({ type }: { type: SectionType }) { if (type === 'image' || type === 'caption-grid') return <ImageIcon/>; if (type === 'list') return <Archive/>; if (type === 'table' || type === 'timeline') return <Table2/>; if (type === 'menu-zigzag') return <PanelsTopLeft/>; if (type === 'icon-card') return <Sparkles/>; if (type === 'offer') return <Maximize2/>; return <FileText/> }
@@ -591,10 +657,10 @@ function LayerList({ sections, groups, selectedId, onSelect, onMove, onCreateGro
   })
   return <><div className="panel-heading"><div><p>PAGE STRUCTURE</p><h2>레이어</h2></div><span>{sections.length}</span></div><div className="layer-group-actions">{grouping ? <><small><b>각 블록 맨 왼쪽의 ‘선택’ 버튼</b>을 눌러 연속 블록을 2개 이상 고르세요.</small><button onClick={createGroup} disabled={checked.length < 2}><Check/> 묶기 {checked.length}</button><button onClick={() => { setGrouping(false); setChecked([]) }}><X/> 취소</button></> : <button onClick={() => setGrouping(true)}><Plus/> 그룹 만들기</button>}</div><div className="layer-list">{entries}</div></> }
 
-function PageCover({ project, onSelect }: { project: Project; onSelect: () => void }) {
+function PageCover({ project, onStartBlank, onStartSample, onImport }: { project: Project; onStartBlank: () => void; onStartSample: () => void; onImport: () => void }) {
   const isBlank = !project.page.title.trim() && !project.page.subtitle.trim() && !project.page.destination.trim() && project.sections.length === 0 && project.assets.length === 0
-  if (isBlank) return <header className="page-cover blank-cover" role="button" tabIndex={0} aria-label="새 캔버스 기본 정보 편집" onClick={onSelect} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') onSelect() }}><Blocks/><strong>빈 내일스패셜 메이킹 스튜디오</strong><p>왼쪽에서 블록을 추가하거나<br/>오른쪽에서 기본 정보를 입력하세요.</p></header>
-  return <header className="page-cover" role="button" tabIndex={0} aria-label="페이지 표지 편집" onClick={onSelect} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') onSelect() }}><div className="cover-kicker"><span>NAEIL TOUR</span><i>기획 시안</i></div><p>{project.page.destination}</p><h1>{project.page.title}</h1><h2>{project.page.subtitle}</h2><div className="cover-line"/></header>
+  if (isBlank) return <header className="page-cover blank-cover" aria-label="새 기획안 시작"><div className="quick-start-mark"><Blocks/></div><p className="quick-start-kicker">NAEIL SPECIAL CANVAS</p><strong>어떻게 시작할까요?</strong><p>처음이라면 샘플을 열어 편집 흐름을 익혀 보세요.</p><div className="quick-start-actions"><button className="primary-button" onClick={onStartBlank}><Plus/> 빈 기획안 시작</button><button className="quick-start-button" onClick={onStartSample}><Sparkles/> 샘플 기획안으로 연습</button><button className="quick-start-button" onClick={onImport}><FileJson/> AI가 만든 JSON 불러오기</button></div></header>
+  return null
 }
 function EditableLayoutBox({ box, active, onSelect, onChange, children }: { box: BlockBox; active: boolean; onSelect: () => void; onChange: (next: BlockBox) => void; children: React.ReactNode }) {
   const [draft, setDraft] = useState<BlockBox | null>(null)
@@ -627,11 +693,12 @@ function InlineText({ tag = 'span', value, className = '', multiline = false, re
   const [draft, setDraft] = useState(value)
   const inputRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
   useEffect(() => { if (!editing) setDraft(value) }, [value, editing])
-  useEffect(() => { if (editing) { inputRef.current?.focus(); inputRef.current?.select() } }, [editing])
+  useEffect(() => { if (editing) inputRef.current?.focus() }, [editing])
   const start = (event: React.MouseEvent) => { if (readOnly) return; event.preventDefault(); event.stopPropagation(); onEditStart?.(); setDraft(value); setEditing(true) }
   const commitValue = () => { setEditing(false); if (draft !== value) onChange(draft) }
   const cancel = () => { setDraft(value); setEditing(false) }
   const keyDown = (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    event.stopPropagation()
     if (event.key === 'Escape') { event.preventDefault(); cancel() }
     if (event.key === 'Enter' && (!multiline || event.ctrlKey || event.metaKey)) { event.preventDefault(); commitValue() }
   }
@@ -650,7 +717,7 @@ function RichText({ tag = 'span', value, className = '', readOnly = false, onEdi
   useEffect(() => { if (editing && ref.current) { ref.current.focus(); const selection = window.getSelection(); const range = document.createRange(); range.selectNodeContents(ref.current); range.collapse(false); selection?.removeAllRanges(); selection?.addRange(range) } }, [editing])
   const commitValue = () => { const next = sanitizeRichText(ref.current?.innerHTML || ''); setEditing(false); if (next !== safeValue) onChange(next) }
   const Component = tag as React.ElementType
-  if (editing) return <Component ref={ref} className={`${className} rich-inline-editable`} contentEditable suppressContentEditableWarning dangerouslySetInnerHTML={{ __html: safeValue }} onBlur={commitValue} onKeyDown={(event: React.KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); setEditing(false) } if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); commitValue() } }} onClick={(event: React.MouseEvent) => event.stopPropagation()}/>
+  if (editing) return <Component ref={ref} className={`${className} rich-inline-editable`} contentEditable suppressContentEditableWarning dangerouslySetInnerHTML={{ __html: safeValue }} onBlur={commitValue} onKeyDown={(event: React.KeyboardEvent) => { event.stopPropagation(); if (event.key === 'Escape') { event.preventDefault(); setEditing(false) } if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); commitValue() } }} onClick={(event: React.MouseEvent) => event.stopPropagation()}/>
   return <Component className={`${className} rich-inline-render`} title={readOnly ? undefined : '더블클릭해서 수정'} onDoubleClick={(event: React.MouseEvent) => { if (readOnly) return; event.preventDefault(); event.stopPropagation(); onEditStart?.(); setEditing(true) }} dangerouslySetInnerHTML={{ __html: safeValue }}/>
 }
 
@@ -698,7 +765,7 @@ function MultilineText({ value }: { value: string }) {
 
 type CommonTextValue = { eyebrow: string; title: string; body: string }
 function CommonText({ value, readOnly, onChange, onEditStart, className = '', children }: { value: CommonTextValue; readOnly: boolean; onChange: (patch: Partial<CommonTextValue>) => void; onEditStart?: () => void; className?: string; children?: React.ReactNode }) {
-  return <div className={`section-text-content ${className}`.trim()}>
+  return <div className={`section-text-content ${className}`.trim()} data-guide="copy-area">
     {!isRichTextEmpty(value.eyebrow) && <InlineText tag="p" className="section-eyebrow" value={value.eyebrow} readOnly={readOnly} onEditStart={onEditStart} onChange={eyebrow => onChange({ eyebrow })}/>}
     {!isRichTextEmpty(value.title) && <RichText tag="h2" value={value.title} readOnly={readOnly} onEditStart={onEditStart} onChange={title => onChange({ title })}/>} 
     {!isRichTextEmpty(value.body) && <RichText tag="p" className="section-body" value={value.body} readOnly={readOnly} onEditStart={onEditStart} onChange={body => onChange({ body })}/>} 
@@ -742,8 +809,8 @@ function SectionView({ section, assets, selected, readOnly, activeBoxId, activeI
     const ids = box.assetIds || []
     const media = ids.map(id => assets.find(asset => asset.id === id)).filter(Boolean) as MediaAsset[]
     const customItems = normalizeCustomLayout(ids, section.mediaLayoutItems)
-    if (!media.length) return <div className={`media-placeholder ${selected && activeBoxId === box.id ? 'active' : ''}`} onClick={event => { event.stopPropagation(); onSelectBox(box.id) }}><ImageIcon/><span>이 이미지 박스를 선택한 뒤 왼쪽 이미지 탭에서 연결하세요.</span></div>
-    return <div className={`section-media media-count-${media.length} media-auto-${media.length === 1 ? 'single' : media.length % 2 === 0 ? 'even' : 'odd'} media-layout-${section.mediaLayout} ${selected && activeBoxId === box.id ? 'active' : ''}`} onClick={event => { event.stopPropagation(); onSelectBox(box.id) }}>{media.map(asset => { const entry = customItems.find(item => item.assetId === asset.id); const sourceLabel = asset.src.startsWith('http') ? asset.src : asset.name; const label = <figcaption className="media-asset-label" title={sourceLabel}>{sourceLabel}</figcaption>; return <figure key={asset.id} className={`media-asset-frame ${section.mediaLayout === 'custom' && entry ? 'custom-media-frame' : ''}`} style={section.mediaLayout === 'custom' && entry ? { gridColumn: `${entry.column} / span ${entry.columnSpan}`, gridRow: `${entry.row} / span ${entry.rowSpan}` } : undefined}><img src={asset.src} alt={asset.alt || asset.name} style={section.mediaLayout === 'custom' && entry ? { objectPosition: entry.focus } : undefined} {...dragProps(asset.id)}/>{label}</figure> })}</div>
+    if (!media.length) return <div data-guide="image-box" className={`media-placeholder ${selected && activeBoxId === box.id ? 'active' : ''}`} onClick={event => { event.stopPropagation(); onSelectBox(box.id) }}><ImageIcon/><span>이 이미지 박스를 선택한 뒤 왼쪽 이미지 탭에서 연결하세요.</span></div>
+    return <div data-guide="image-box" className={`section-media media-count-${media.length} media-auto-${media.length === 1 ? 'single' : media.length % 2 === 0 ? 'even' : 'odd'} media-layout-${section.mediaLayout} ${selected && activeBoxId === box.id ? 'active' : ''}`} onClick={event => { event.stopPropagation(); onSelectBox(box.id) }}>{media.map(asset => { const entry = customItems.find(item => item.assetId === asset.id); const sourceLabel = asset.src.startsWith('http') ? asset.src : asset.name; const label = <figcaption className="media-asset-label" title={sourceLabel}>{sourceLabel}</figcaption>; return <figure key={asset.id} className={`media-asset-frame ${section.mediaLayout === 'custom' && entry ? 'custom-media-frame' : ''}`} style={section.mediaLayout === 'custom' && entry ? { gridColumn: `${entry.column} / span ${entry.columnSpan}`, gridRow: `${entry.row} / span ${entry.rowSpan}` } : undefined}><img src={asset.src} alt={asset.alt || asset.name} style={section.mediaLayout === 'custom' && entry ? { objectPosition: entry.focus } : undefined} {...dragProps(asset.id)}/>{label}</figure> })}</div>
   }
   const tools = selected && <div className="section-tools" onClick={e => e.stopPropagation()}><button aria-label="블록 위로 이동" disabled={index === 0} onClick={() => onMove(section.id, -1)}><ChevronUp/></button><button aria-label="블록 아래로 이동" disabled={index === total - 1} onClick={() => onMove(section.id, 1)}><ChevronDown/></button><button aria-label="블록 복제" onClick={() => onDuplicate(section.id)}><Copy/></button><button aria-label="블록 삭제" className="danger" onClick={() => onDelete(section.id)}><Trash2/></button></div>
   if (SPECIAL_LAYOUT_TYPES.has(section.type)) return <section data-section-id={section.id} className={`page-section bg-white type-${section.type} ${selected ? 'selected' : ''} ${section.hidden ? 'is-hidden' : ''}`} onClick={onSelect}>

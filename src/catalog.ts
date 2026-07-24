@@ -1,4 +1,4 @@
-import type { BlockBox, CampaignData, IconCardItem, Project, Section, SectionType } from './types'
+import type { BlockBox, CampaignData, IconCardItem, MediaAsset, Project, Section, SectionType } from './types'
 import { CURRENT_CATALOG_VERSION, CURRENT_SCHEMA_VERSION, migrateProject } from './migrations'
 import { normalizeContentGroups } from './content-groups'
 
@@ -30,6 +30,21 @@ export function normalizeReferenceMediaSlots(type: SectionType, items: string[],
   if (type !== 'caption-grid' && type !== 'menu-zigzag' && type !== 'timeline') return mediaIds
   const slotCount = items.length + (type === 'timeline' ? 1 : 0)
   return Array.from({ length: slotCount }, (_, index) => mediaIds[index] || '')
+}
+
+/**
+ * Timeline day markers are stored as item indexes. When one schedule item is
+ * removed, later day indexes must move up as well. If that item was the only
+ * item in a day, remove its empty day marker instead of leaving the next day
+ * without a label.
+ */
+export function timelineDayStartsAfterItemRemoval(dayStarts: number[] | undefined, itemCount: number, removedIndex: number) {
+  const starts = Array.from(new Set((dayStarts || []).filter(start => Number.isInteger(start) && start >= 0 && start < itemCount))).sort((a, b) => a - b)
+  return starts.flatMap((start, index) => {
+    if (start !== removedIndex) return [start > removedIndex ? start - 1 : start]
+    const nextStart = starts[index + 1] ?? itemCount
+    return nextStart > removedIndex + 1 ? [start] : []
+  })
 }
 
 export function normalizeSectionType(value: unknown): SectionType {
@@ -186,5 +201,42 @@ export function createSeedProject(): Project {
     page: { title: '', subtitle: '', destination: '', internalMemo: '' },
     campaign: createCampaignData(id, '새 내일스패셜 기획안'),
     sections: [], contentGroups: [], assets: [],
+  }
+}
+
+function sampleImage(id: string, name: string, label: string, colors: [string, string]): MediaAsset {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${colors[0]}"/><stop offset="1" stop-color="${colors[1]}"/></linearGradient></defs><rect width="1440" height="900" fill="url(#g)"/><circle cx="1180" cy="150" r="190" fill="rgba(255,255,255,.16)"/><path d="M0 650 C220 540 390 760 620 640 S1030 510 1440 680 V900 H0Z" fill="rgba(255,255,255,.17)"/><text x="100" y="690" fill="white" font-family="sans-serif" font-size="66" font-weight="700">${label}</text><text x="104" y="752" fill="white" fill-opacity=".78" font-family="sans-serif" font-size="27">SAMPLE IMAGE · REPLACE WITH YOUR PHOTO</text></svg>`
+  return { id, name, src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`, provider: 'generated', sourceId: 'studio-sample', assetStage: 'reference', usageScope: '내일스패셜 메이킹 스튜디오 샘플', rightsStatus: 'cleared', qualityGrade: 'B', approval: 'approved', evidence: '앱 내 연습용 SVG', alt: label }
+}
+
+/** A safe, editable practice project. It never overwrites the user's current draft. */
+export function createSampleProject(): Project {
+  const project = createSeedProject()
+  const beach = sampleImage(crypto.randomUUID(), 'sample-guam-beach.svg', 'GUAM BEACH', ['#0a8c96', '#45b9cb'])
+  const stay = sampleImage(crypto.randomUUID(), 'sample-guam-stay.svg', 'RESORT STAY', ['#d88a52', '#f0bd76'])
+  const text = makeSection('text')
+  text.eyebrow = 'SAMPLE PROJECT'
+  text.title = '괌 가족 휴양 4박 5일'
+  text.body = '샘플 문구를 더블클릭해 바로 수정해 보세요. 여행지와 상품 성격에 맞춰 블록 순서를 바꾸고, 필요한 블록만 남기면 됩니다.'
+  const image = makeSection('image')
+  image.eyebrow = 'RESORT HIGHLIGHT'
+  image.title = '바다 가까이에서 보내는 여유로운 하루'
+  image.body = '가운데 이미지 박스를 클릭하면 왼쪽 이미지 탭으로 이동합니다. 라이브러리의 사진을 눌러 이 자리에 연결해 보세요.'
+  image.mediaIds = [beach.id, stay.id]
+  image.layoutBoxes = createLayoutBoxes('text-top', image.mediaIds)
+  const list = makeSection('list')
+  list.eyebrow = 'WHY THIS TRIP'
+  list.title = '가족 여행에 맞춘 핵심 포인트'
+  list.body = '목록을 선택한 뒤 가운데 항목을 눌러 내용을 편집합니다.'
+  list.items = ['공항 왕복 이동으로 도착부터 편안하게', '리조트 중심 일정으로 여유 있게', '가족 구성에 맞춰 선택 가능한 체험']
+  return {
+    ...project,
+    name: '샘플 · 괌 가족 휴양 기획안',
+    category: '우리만',
+    layout: 'hotel-sales',
+    page: { title: '괌 가족 휴양', subtitle: '바다 가까이에서 보내는 4박 5일', destination: '괌', internalMemo: '연습용 샘플입니다. 자유롭게 수정하거나 삭제해 보세요.' },
+    campaign: createCampaignData(project.id, '샘플 · 괌 가족 휴양 기획안'),
+    sections: [text, image, list],
+    assets: [beach, stay],
   }
 }

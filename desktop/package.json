@@ -1,6 +1,6 @@
 {
   "name": "naeil-special-canvas-desktop",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "내일스패셜 기획안 캔버스 데스크톱 앱",
   "main": "main.cjs",
   "private": true,

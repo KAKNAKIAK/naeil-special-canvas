@@ -16,7 +16,7 @@ function plainLines(rawText: string) {
 
 function draftLead(rawText: string) {
   const candidate = plainLines(rawText).find(line => line.length >= 12)
-  return candidate ? candidate.slice(0, 180) : '상품의 핵심 가치와 확인된 정보를 바탕으로 기획 초안을 작성합니다.'
+  return candidate ? candidate.slice(0, 180) : '확인된 정보로 기획 초안을 작성합니다.'
 }
 
 type ContentSignals = {
@@ -117,13 +117,13 @@ function blockFor(type: GeneratableSectionType, common: CanvasBrief['common'], i
   const focus = signals.confirmed[0]?.field || '상품 구성'
   if (type === 'text') return { type, ...common }
   if (type === 'image') return {
-    type, categoryLabel: common.categoryLabel, title: `${focus} 이미지`, body: '선택한 이미지와 확인된 내용을 함께 배치하세요.', mediaIds: imageIds,
+    type, categoryLabel: common.categoryLabel, title: `${focus} 이미지`, body: '사진과 설명을 함께 배치해 보세요.', mediaIds: imageIds,
     mediaLayout: imageIds.length >= 4 ? 'grid-3' : imageIds.length >= 2 ? 'grid-2' : 'auto',
     contentLayout: plan.strategy === 'photo-led' ? 'media-top' : plan.strategy.includes('schedule') ? 'media-right' : 'text-top',
   }
   if (type === 'list') return {
     type, categoryLabel: common.categoryLabel, title: plan.strategy === 'benefit-led' ? '포함 사항과 특전' : '확인된 포인트',
-    body: '확인된 내용만 먼저 정리했습니다.', items: factItems.length ? factItems : ['확인된 상품 정보를 추가하세요.'], listStyle: plan.strategy === 'benefit-led' ? 'offer' : 'list',
+    body: '확인된 내용입니다.', items: factItems.length ? factItems : ['확인된 상품 정보를 추가하세요.'], listStyle: plan.strategy === 'benefit-led' ? 'offer' : 'list',
   }
   if (type === 'table') {
     const rows = scheduleRows(signals)
