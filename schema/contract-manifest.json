@@ -1,5 +1,5 @@
 {
-  "canvasAppVersion": "1.0.24",
+  "canvasAppVersion": "1.0.25",
   "schemaVersion": "2.1.0",
   "catalogVersion": "1.0.0",
   "contractHash": "567241ed20f739d39cefa3fe566b37db613db185f5553b9c545cd71e98c117d3",
@@ -9,5 +9,5 @@
     "schema-version.json",
     "block-catalog.json"
   ],
-  "syncedAt": "2026-07-27T08:10:54.291Z"
+  "syncedAt": "2026-07-27T08:32:39.049Z"
 }
