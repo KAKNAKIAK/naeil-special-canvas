@@ -80,6 +80,23 @@ export function isRichTextEmpty(value: string | undefined | null) {
   return !visible
 }
 
+/** Returns readable text for compact UI labels while keeping the rich HTML source untouched. */
+export function richTextToPlainText(value: string | undefined | null) {
+  if (!value) return ''
+  return value
+    .replace(/<br\s*\/?\s*>/gi, '\n')
+    .replace(/<\/(?:div|p|li|blockquote|h[1-6])\s*>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;|&#160;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 export const RICH_TEXT_COLORS = [
   { value: '#172326', label: '기본색' },
   { value: '#07858b', label: '청록' },

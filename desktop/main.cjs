@@ -6,6 +6,17 @@ const fs = require('node:fs/promises')
 const APP_ID = 'kr.co.naeiltour.specialcanvas'
 let isInstallingUpdate = false
 let autoUpdaterConfigured = false
+const isPrimaryInstance = app.requestSingleInstanceLock()
+
+if (!isPrimaryInstance) app.quit()
+
+app.on('second-instance', () => {
+  const window = BrowserWindow.getAllWindows()[0]
+  if (!window) return
+  if (window.isMinimized()) window.restore()
+  window.show()
+  window.focus()
+})
 
 /**
  * Mirrors the skill bundled with this app to an app-owned user-data folder.
@@ -125,6 +136,35 @@ function createWindow() {
     if (url !== window.webContents.getURL()) event.preventDefault()
   })
 
+  let rendererRecoveryOpen = false
+  const recoverRenderer = detail => {
+    if (rendererRecoveryOpen || window.isDestroyed() || isInstallingUpdate) return
+    rendererRecoveryOpen = true
+    const answer = dialog.showMessageBoxSync(window, {
+      type: 'error',
+      title: '캔버스 화면을 다시 열어야 합니다',
+      message: '작업 화면이 예기치 않게 중단되었습니다.',
+      detail: `${detail}\n파일 메뉴로 저장한 JSON은 유지됩니다. 다시 열기를 누르면 현재 창을 복구합니다.`,
+      buttons: ['다시 열기', '종료'],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true,
+    })
+    if (answer === 0) {
+      rendererRecoveryOpen = false
+      window.webContents.reloadIgnoringCache()
+      return
+    }
+    allowClose = true
+    window.close()
+  }
+  window.webContents.on('render-process-gone', (_event, details) => {
+    if (details.reason !== 'clean-exit') recoverRenderer(`중단 사유: ${details.reason}`)
+  })
+  window.webContents.on('did-fail-load', (_event, _code, description, _url, isMainFrame) => {
+    if (isMainFrame) recoverRenderer(`화면을 불러오지 못했습니다: ${description}`)
+  })
+
   window.once('ready-to-show', () => {
     window.show()
     configureAutoUpdater(window)
@@ -166,13 +206,15 @@ function createWindow() {
   window.loadFile(path.join(__dirname, 'dist', 'index.html'))
 }
 
-app.whenReady().then(async () => {
-  await syncBundledSkill()
-  createWindow()
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+if (isPrimaryInstance) {
+  app.whenReady().then(async () => {
+    await syncBundledSkill()
+    createWindow()
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    })
   })
-})
+}
 
 ipcMain.handle('naeil-special:download-image', async (_event, rawUrl) => {
   let url

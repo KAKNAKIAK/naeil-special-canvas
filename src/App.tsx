@@ -6,11 +6,12 @@ import { APP_VERSION } from './app-version'
 import { moveSectionUnit, normalizeContentGroups, removeSectionsFromGroups } from './content-groups'
 import { exportZip, parseShareSnapshot, projectLoadJson, standaloneHtml, downloadText } from './exporters'
 import { createCustomLayout, FOCUS_OPTIONS, layoutPresetsFor, normalizeCustomLayout, patchLayoutItem, type ImageOrientation } from './image-layout'
-import { loadWorkspace, saveMigrationBackup, saveWorkspace } from './storage'
+import { loadWorkspaceWithTimeout, saveMigrationBackup, saveWorkspace } from './storage'
 import { isDirectProjectPayload, migrateProject } from './migrations'
-import { isRichTextEmpty, RICH_TEXT_COLORS, RICH_TEXT_SIZES, sanitizeRichText } from './rich-text'
+import { isRichTextEmpty, RICH_TEXT_COLORS, RICH_TEXT_SIZES, richTextToPlainText, sanitizeRichText } from './rich-text'
 import { joinPair, joinTimeline, splitPair, splitTimeline } from './preset-item-format'
 import { approveBrief, buildDraftBrief, buildProjectFromApprovedBrief, createBriefWorkspace } from './brief'
+import { collectAssetSources, historySnapshot, restoreHistorySnapshot } from './project-history'
 import type { BlockBox, BriefWorkspace, CanvasBrief, CanvasBriefBlock, ContentGroup, GeneratableSectionType, IconCardItem, ImageFocus, MediaAsset, MediaLayoutItem, Project, Section, SectionType } from './types'
 
 type LeftTab = 'blocks' | 'images' | 'layers'
@@ -95,15 +96,19 @@ export default function App() {
   const projectRef = useRef(project)
   const projectsRef = useRef<Project[]>([])
   const projectFilesRef = useRef<Record<string, string>>({})
+  const assetSourcesRef = useRef<Record<string, string>>({})
+  const storageFailureShownRef = useRef(false)
+  const historyCoalesceUntilRef = useRef(0)
   const linkedSaveSnapshotRef = useRef<Record<string, string>>({})
   const linkedSaveSequenceRef = useRef(0)
   const imageSelectionRef = useRef({ sectionId: '', boxId: '', specialMediaIndex: null as number | null })
 
-  useEffect(() => { projectRef.current = project }, [project])
+  useEffect(() => { projectRef.current = project; assetSourcesRef.current = collectAssetSources(project, assetSourcesRef.current) }, [project])
   useEffect(() => { projectsRef.current = projects }, [projects])
   useEffect(() => { projectFilesRef.current = projectFiles }, [projectFiles])
   useEffect(() => { imageSelectionRef.current = { sectionId: selectedId, boxId: selectedBoxId, specialMediaIndex: selectedSpecialMediaIndex } }, [selectedId, selectedBoxId, selectedSpecialMediaIndex])
-  useEffect(() => { const shared = parseShareSnapshot(); if (shared) { const next = normalizeProject(shared); setProject(next); setProjects([next]); setSelectedId(next.sections[0]?.id || ''); setReadOnly(true); setReady(true); return } loadWorkspace().then(stored => {
+  useEffect(() => { let active = true; const shared = parseShareSnapshot(); if (shared) { const next = normalizeProject(shared); setProject(next); setProjects([next]); setSelectedId(next.sections[0]?.id || ''); setReadOnly(true); setReady(true); return } loadWorkspaceWithTimeout().then(stored => {
+    if (!active) return
     const saved = stored?.projects?.length ? stored.projects.map(normalizeProject) : []
     const seed = createSeedProject()
     setProjects(saved)
@@ -112,8 +117,16 @@ export default function App() {
     setProject(seed)
     setSelectedId('')
     setReady(true)
-  }) }, [])
-  useEffect(() => { if (!ready || readOnly) return; const timer = setTimeout(() => { const current = projectsRef.current; const next = current.some(item => item.id === project.id) ? current.map(item => item.id === project.id ? project : item) : [project, ...current]; projectsRef.current = next; setProjects(next); saveWorkspace({ activeId: project.id, projects: next, projectFiles: projectFilesRef.current }).then(() => setSavedAt(new Date())) }, 450); return () => clearTimeout(timer) }, [project, ready, readOnly])
+  }).catch(() => {
+    if (!active) return
+    const seed = createSeedProject()
+    setProjects([])
+    setProject(seed)
+    setSelectedId('')
+    setToast('이 PC의 임시 작업을 열지 못해 빈 캔버스로 시작했습니다. 저장한 JSON 파일은 파일 메뉴에서 다시 불러올 수 있습니다.')
+    setReady(true)
+  }); return () => { active = false } }, [])
+  useEffect(() => { if (!ready || readOnly) return; const timer = setTimeout(() => { const current = projectsRef.current; const next = current.some(item => item.id === project.id) ? current.map(item => item.id === project.id ? project : item) : [project, ...current]; projectsRef.current = next; setProjects(next); saveWorkspace({ activeId: project.id, projects: next, projectFiles: projectFilesRef.current }).then(() => { storageFailureShownRef.current = false; setSavedAt(new Date()) }).catch(() => { if (storageFailureShownRef.current) return; storageFailureShownRef.current = true; setToast('이 PC의 임시 자동 저장에 실패했습니다. 파일 메뉴에서 JSON 저장을 해주세요.') }) }, 450); return () => clearTimeout(timer) }, [project, ready, readOnly])
   useEffect(() => {
     if (!ready || readOnly) return
     const desktop = window.naeilSpecialDesktop
@@ -185,9 +198,13 @@ export default function App() {
     })
   }
 
-  function commit(mutator: (draft: Project) => void) {
+  function commit(mutator: (draft: Project) => void, coalesceHistory = false) {
     if (readOnly) { setToast('읽기 전용 공유본입니다.'); return }
-    setProject(current => { setHistory(h => [...h.slice(-39), deepCopy(current)]); setFuture([]); const draft = deepCopy(current); mutator(draft); draft.updatedAt = new Date().toISOString(); return draft })
+    const now = Date.now()
+    const shouldRecordHistory = !coalesceHistory || now >= historyCoalesceUntilRef.current
+    if (coalesceHistory) historyCoalesceUntilRef.current = now + 900
+    else historyCoalesceUntilRef.current = 0
+    setProject(current => { if (shouldRecordHistory) setHistory(h => [...h.slice(-39), historySnapshot(current)]); setFuture([]); const draft = deepCopy(current); mutator(draft); draft.updatedAt = new Date().toISOString(); return draft })
   }
   async function saveProjectFile(saveAs = false) {
     if (readOnly) { setToast('읽기 전용 공유본은 저장할 수 없습니다.'); return false }
@@ -262,7 +279,7 @@ export default function App() {
     if (!briefWorkspace.brief) return
     try {
       const next = buildProjectFromApprovedBrief(project, briefWorkspace.brief)
-      setHistory(history => [...history.slice(-39), deepCopy(project)])
+      setHistory(history => [...history.slice(-39), historySnapshot(project)])
       setFuture([])
       setProject(next)
       setSelectedId(next.sections[0]?.id || '')
@@ -278,11 +295,11 @@ export default function App() {
     if (current.sectionId !== target.sectionId) return false
     return target.specialMediaIndex !== undefined ? current.specialMediaIndex === target.specialMediaIndex : !target.boxId || current.boxId === target.boxId
   }
-  function undo() { if (!history.length) return; const previous = history[history.length - 1]; setFuture(f => [deepCopy(project), ...f]); setHistory(h => h.slice(0, -1)); setProject(previous) }
-  function redo() { if (!future.length) return; const next = future[0]; setHistory(h => [...h, deepCopy(project)]); setFuture(f => f.slice(1)); setProject(next) }
+  function undo() { if (!history.length) return; const previous = history[history.length - 1]; setFuture(f => [historySnapshot(project), ...f]); setHistory(h => h.slice(0, -1)); setProject(restoreHistorySnapshot(previous, assetSourcesRef.current)) }
+  function redo() { if (!future.length) return; const next = future[0]; setHistory(h => [...h, historySnapshot(project)]); setFuture(f => f.slice(1)); setProject(restoreHistorySnapshot(next, assetSourcesRef.current)) }
   function addSection(type: SectionType) { const section = makeSection(type); commit(draft => draft.sections.push(section)); focusSection(section); setBlockPickerOpen(false); setMobilePanel(null); setTimeout(() => document.querySelector(`[data-section-id="${section.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80) }
-  function updateSection(patch: Partial<Section>) { if (!selected) return; commit(draft => { const target = draft.sections.find(s => s.id === selected.id); if (target) Object.assign(target, patch) }) }
-  function updateSectionById(sectionId: string, patch: Partial<Section>) { commit(draft => { const target = draft.sections.find(s => s.id === sectionId); if (target) Object.assign(target, patch) }) }
+  function updateSection(patch: Partial<Section>) { if (!selected) return; commit(draft => { const target = draft.sections.find(s => s.id === selected.id); if (target) Object.assign(target, patch) }, true) }
+  function updateSectionById(sectionId: string, patch: Partial<Section>) { commit(draft => { const target = draft.sections.find(s => s.id === sectionId); if (target) Object.assign(target, patch) }, true) }
   function selectSectionBox(sectionId: string, boxId: string) {
     const section = project.sections.find(item => item.id === sectionId)
     const box = section ? normalizeLayoutBoxes(section).find(item => item.id === boxId) : undefined
@@ -320,7 +337,7 @@ export default function App() {
     })
     setToast(visible ? '히어로 이미지 영역을 다시 추가했습니다.' : '히어로 이미지 영역을 삭제했습니다.')
   }
-  function updateLayoutBox(sectionId: string, boxId: string, patch: Partial<BlockBox>) { commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section) return; section.layoutBoxes = normalizeLayoutBoxes(section).map(box => box.id === boxId ? { ...box, ...patch } : box) }) }
+  function updateLayoutBox(sectionId: string, boxId: string, patch: Partial<BlockBox>) { commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section) return; section.layoutBoxes = normalizeLayoutBoxes(section).map(box => box.id === boxId ? { ...box, ...patch } : box) }, true) }
   function addLayoutBox(sectionId: string, kind: 'text' | 'image') { let boxId = ''; commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section) return; const boxes = normalizeLayoutBoxes(section); const bottom = Math.max(...boxes.map(box => box.row + box.rowSpan), 1); const imageFlow = section.type === 'image'; const next: BlockBox = imageFlow
       ? { id: crypto.randomUUID(), kind, column: 1, row: bottom + 1, columnSpan: 12, rowSpan: kind === 'text' ? 4 : 6, zIndex: Math.max(...boxes.map(box => box.zIndex), 0) + 1, eyebrow: kind === 'text' ? 'Category Label' : undefined, title: kind === 'text' ? '제목' : undefined, text: kind === 'text' ? '본문' : undefined, assetIds: kind === 'image' ? [] : undefined }
       : { id: crypto.randomUUID(), kind, column: kind === 'text' ? 2 : 7, row: bottom + 1, columnSpan: 5, rowSpan: kind === 'text' ? 3 : 5, zIndex: Math.max(...boxes.map(box => box.zIndex), 0) + 1, text: kind === 'text' ? '새 텍스트를 입력하세요.' : undefined, assetIds: kind === 'image' ? [] : undefined }
@@ -373,7 +390,7 @@ export default function App() {
   }
   function insertPresetItem(sectionId: string, index: number, placement: 'above' | 'below') { let nextIndex = -1; commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || !isItemPreset(section.type)) return; const insertAt = Math.max(0, index + (placement === 'below' ? 1 : 0)); if (section.type === 'table') { const headers = section.tableHeaders?.length ? section.tableHeaders : ['구분', '내용']; const rows = section.tableRows || []; section.tableRows = [...rows.slice(0, insertAt), headers.map((_, column) => column === 0 ? nextDayLabel(rows) : ''), ...rows.slice(insertAt)]; nextIndex = insertAt } else if (section.type === 'icon-card') { const cards = section.iconCards || []; section.iconCards = [...cards.slice(0, insertAt), newIconCard(), ...cards.slice(insertAt)]; nextIndex = insertAt } else { const previousItems = section.items; const previousReversed = previousItems.map((_, itemIndex) => Boolean(section.menuItemReversed?.[itemIndex])); section.mediaIds = REFERENCE_LAYOUT_TYPES.has(section.type) ? normalizeReferenceMediaSlots(section.type, previousItems, section.mediaIds) : section.mediaIds; section.items = [...previousItems.slice(0, insertAt), newPresetItem(section.type), ...previousItems.slice(insertAt)]; if (section.type === 'menu-zigzag') section.menuItemReversed = [...previousReversed.slice(0, insertAt), false, ...previousReversed.slice(insertAt)]; if (section.type === 'timeline') section.timelineDayStarts = (section.timelineDayStarts || []).map(start => start > insertAt ? start + 1 : start); if (REFERENCE_LAYOUT_TYPES.has(section.type)) section.mediaIds.splice(referenceMediaSlot(section.type, insertAt), 0, ''); nextIndex = insertAt } }); if (nextIndex >= 0) { selectSectionItem(sectionId, nextIndex); setToast(placement === 'above' ? '위에 항목을 추가했습니다.' : '아래에 항목을 추가했습니다.') } }
   function duplicatePresetItem(sectionId: string, index: number) { let nextIndex = -1; commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || !isItemPreset(section.type)) return; const insertAt = index + 1; if (section.type === 'table') { const rows = section.tableRows || []; const row = rows[index]; if (!row) return; section.tableRows = [...rows.slice(0, insertAt), [...row], ...rows.slice(insertAt)]; nextIndex = insertAt } else if (section.type === 'icon-card') { const cards = section.iconCards || []; const card = cards[index]; if (!card) return; section.iconCards = [...cards.slice(0, insertAt), cloneIconCard(card), ...cards.slice(insertAt)]; nextIndex = insertAt } else { const value = section.items[index]; if (value === undefined) return; const reversed = section.items.map((_, itemIndex) => Boolean(section.menuItemReversed?.[itemIndex])); section.mediaIds = REFERENCE_LAYOUT_TYPES.has(section.type) ? normalizeReferenceMediaSlots(section.type, section.items, section.mediaIds) : section.mediaIds; section.items = [...section.items.slice(0, insertAt), value, ...section.items.slice(insertAt)]; if (section.type === 'menu-zigzag') section.menuItemReversed = [...reversed.slice(0, insertAt), reversed[index], ...reversed.slice(insertAt)]; if (section.type === 'timeline') section.timelineDayStarts = (section.timelineDayStarts || []).map(start => start > index ? start + 1 : start); if (REFERENCE_LAYOUT_TYPES.has(section.type)) { const slot = referenceMediaSlot(section.type, index); section.mediaIds.splice(slot + 1, 0, section.mediaIds[slot] || '') } nextIndex = insertAt } }); if (nextIndex >= 0) { selectSectionItem(sectionId, nextIndex); setToast('항목을 복제했습니다.') } }
-  function updatePresetItem(sectionId: string, index: number, value: string | string[] | Partial<IconCardItem>) { commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section) return; if (section.type === 'table' && Array.isArray(value)) section.tableRows = (section.tableRows || []).map((row, rowIndex) => rowIndex === index ? value : row); else if (section.type === 'icon-card' && !Array.isArray(value) && typeof value !== 'string') section.iconCards = (section.iconCards || []).map((card, itemIndex) => itemIndex === index ? { ...card, ...value } : card); else if (typeof value === 'string') section.items = section.items.map((item, itemIndex) => itemIndex === index ? value : item) }) }
+  function updatePresetItem(sectionId: string, index: number, value: string | string[] | Partial<IconCardItem>) { commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section) return; if (section.type === 'table' && Array.isArray(value)) section.tableRows = (section.tableRows || []).map((row, rowIndex) => rowIndex === index ? value : row); else if (section.type === 'icon-card' && !Array.isArray(value) && typeof value !== 'string') section.iconCards = (section.iconCards || []).map((card, itemIndex) => itemIndex === index ? { ...card, ...value } : card); else if (typeof value === 'string') section.items = section.items.map((item, itemIndex) => itemIndex === index ? value : item) }, true) }
   function movePresetItem(sectionId: string, index: number, direction: -1 | 1) { commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || !isItemPreset(section.type)) return; const values = section.type === 'table' ? section.tableRows || [] : section.type === 'icon-card' ? section.iconCards || [] : section.items; const target = index + direction; if (target < 0 || target >= values.length) return; [values[index], values[target]] = [values[target], values[index]]; if (section.type === 'table') section.tableRows = [...values as string[][]]; else if (section.type === 'icon-card') section.iconCards = [...values as IconCardItem[]]; else { section.items = [...values as string[]]; if (section.type === 'menu-zigzag') { const reversed = section.items.map((_, itemIndex) => Boolean(section.menuItemReversed?.[itemIndex])); [reversed[index], reversed[target]] = [reversed[target], reversed[index]]; section.menuItemReversed = reversed } if (REFERENCE_LAYOUT_TYPES.has(section.type)) { section.mediaIds = normalizeReferenceMediaSlots(section.type, values as string[], section.mediaIds); const fromSlot = referenceMediaSlot(section.type, index); const targetSlot = referenceMediaSlot(section.type, target); [section.mediaIds[fromSlot], section.mediaIds[targetSlot]] = [section.mediaIds[targetSlot], section.mediaIds[fromSlot]] } } }); setSelectedItemIndex(Math.max(0, index + direction)); setSelectedSpecialMediaIndex(null) }
   function reorderIconCard(sectionId: string, fromIndex: number, insertionIndex: number) { let nextIndex = fromIndex; commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || section.type !== 'icon-card') return; const cards = [...(section.iconCards || [])]; const [card] = cards.splice(fromIndex, 1); if (!card) return; const target = Math.max(0, Math.min(insertionIndex, cards.length + 1)); nextIndex = fromIndex < target ? target - 1 : target; cards.splice(nextIndex, 0, card); section.iconCards = cards }); selectSectionItem(sectionId, nextIndex); setToast('카드 위치를 변경했습니다.') }
   function toggleMenuItemLayout(sectionId: string, index: number) { commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || section.type !== 'menu-zigzag') return; const layout = section.items.map((_, itemIndex) => Boolean(section.menuItemReversed?.[itemIndex])); layout[index] = !layout[index]; section.menuItemReversed = layout }); setToast('이미지와 텍스트 위치를 반전했습니다.') }
@@ -486,14 +503,14 @@ export default function App() {
           } else {
             setLinkedSaveStatus('idle')
           }
-          setHistory(h => [...h, deepCopy(project)])
+          setHistory(h => [...h, historySnapshot(project)])
           setProject(direct)
           setSelectedId(direct.sections[0]?.id || '')
           setToast(result.migrated ? desktopFilePath ? '이전 프로젝트를 최신 형식으로 변환하고 JSON 파일을 연결했습니다.' : '이전 프로젝트를 최신 형식으로 안전하게 변환했습니다.' : desktopFilePath ? '프로젝트를 불러오고 JSON 파일을 연결했습니다.' : '프로젝트를 불러왔습니다.')
           return
         }
         const next: Project = normalizeProject({ ...seed, id: parsed.id || seed.id, name: parsed.name || seed.name, layout: parsed.layout || seed.layout, category: parsed.category || seed.category, deliveryStage: parsed.delivery_stage || seed.deliveryStage, page: { ...seed.page, ...(parsed.page || {}) }, campaign: parsed.campaign || seed.campaign, sections: (parsed.sections || []).map((s: Partial<Section>) => ({ ...makeSection(normalizeSectionType(s.type)), ...s, type: normalizeSectionType(s.type), id: s.id || crypto.randomUUID(), mediaIds: (s as unknown as { media?: string[] }).media || s.mediaIds || [], mediaLayoutItems: (s as unknown as { media_layout_items?: MediaLayoutItem[] }).media_layout_items || s.mediaLayoutItems || [], contentLayout: (s as unknown as { content_layout?: Section['contentLayout'] }).content_layout || s.contentLayout || 'text-top', layoutBoxes: (s as unknown as { layout_boxes?: BlockBox[] }).layout_boxes || s.layoutBoxes || [], tableHeaders: (s as unknown as { table_headers?: string[] }).table_headers || s.tableHeaders || [], tableRows: (s as unknown as { table_rows?: string[][] }).table_rows || s.tableRows || [], iconCards: (s as unknown as { icon_cards?: IconCardItem[] }).icon_cards || s.iconCards || [] })), assets: (parsed.media || []).map((a: Record<string, string>) => ({ id: a.id || crypto.randomUUID(), name: a.src || 'image.jpg', src: '', provider: a.provider || 'provided', sourceId: a.source_id || '', assetStage: a.asset_stage || 'reference', usageScope: a.usage_scope || '', rightsStatus: a.rights_status || 'unknown', qualityGrade: a.quality_grade || 'B', approval: a.approval || 'pending', evidence: a.evidence || '', alt: a.alt || '' })) } as Project)
-        setHistory(h => [...h, deepCopy(project)])
+        setHistory(h => [...h, historySnapshot(project)])
         setProject(next)
         setSelectedId(next.sections[0]?.id || '')
         setLinkedSaveStatus('idle')
@@ -543,7 +560,7 @@ export default function App() {
   return <div className={`app-shell ${readOnly ? 'is-readonly' : ''} ${leftTab === 'images' ? 'image-library-expanded' : ''}`}>
     <header className="topbar">
       <div className="brand"><button className="brand-mark brand-logo" type="button" aria-label="새 빈 캔버스 열기" title="새 빈 캔버스 열기" onClick={openNewBlankCanvas}><img src={BRAND_LOGO} alt="내일투어"/></button><div><strong>내일스패셜 메이킹 스튜디오</strong><span>{readOnly ? 'Read-only handoff' : `Making studio · v${APP_VERSION}`}</span></div></div>
-      <div className="project-title"><input aria-label="프로젝트 이름" value={project.name} onChange={e => commit(d => { d.name = e.target.value })}/><span title={linkedJsonPath || undefined}>{saveStatusLabel}</span></div>
+      <div className="project-title"><input aria-label="프로젝트 이름" value={project.name} onChange={e => commit(d => { d.name = e.target.value }, true)}/><span title={linkedJsonPath || undefined}>{saveStatusLabel}</span></div>
       <div className="toolbar-actions">
         {!readOnly && <div className="file-wrap"><button className="ghost-button" onClick={() => setFileMenuOpen(open => !open)}><Save size={16}/> 파일 <ChevronDown size={14}/></button>{fileMenuOpen && <FileMenu hasLinkedFile={Boolean(projectFiles[project.id])} onImport={() => { setFileMenuOpen(false); importRef.current?.click() }} onSave={() => { setFileMenuOpen(false); void saveProjectFile() }} onSaveAs={() => { setFileMenuOpen(false); void saveProjectFile(true) }} onClose={() => { setFileMenuOpen(false); requestAppClose() }}/>}</div>}
         <button className="icon-button mobile-only" aria-label="왼쪽 패널" onClick={() => setMobilePanel('left')}><Menu size={18}/></button>
@@ -695,6 +712,7 @@ function LayerList({ sections, groups, selectedId, onSelect, onMove, onCreateGro
   useEffect(() => setChecked(current => current.filter(id => sections.some(section => section.id === id))), [sections])
   const groupByFirstSection = new Map(groups.map(group => [group.sectionIds[0], group]))
   const groupedIds = new Set(groups.flatMap(group => group.sectionIds))
+  const layerLabel = (section: Section) => richTextToPlainText(section.title) || SECTION_LABELS[section.type]
   const toggleChecked = (id: string) => setChecked(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id])
   const createGroup = () => {
     const ordered = sections.filter(section => checked.includes(section.id)).map(section => section.id)
@@ -706,9 +724,9 @@ function LayerList({ sections, groups, selectedId, onSelect, onMove, onCreateGro
     setGrouping(false)
   }
   const layerRow = (section: Section, index: number, inGroup = false) => <div key={section.id} className={`layer-row ${selectedId === section.id ? 'active' : ''} ${inGroup ? 'in-group' : ''}`.trim()}>
-    {grouping && <button className={`layer-check ${checked.includes(section.id) ? 'checked' : ''}`} aria-label={`${section.title || SECTION_LABELS[section.type]} 그룹 선택`} onClick={() => toggleChecked(section.id)}>{checked.includes(section.id) ? <Check/> : '선택'}</button>}
-    <button className="layer-main" onClick={() => onSelect(section.id)}><GripVertical/><span><b>{String(index + 1).padStart(2, '0')}</b>{section.title || SECTION_LABELS[section.type]}</span></button>
-    {!grouping && <span className="layer-move"><button aria-label={`${section.title} 위로 이동`} disabled={index === 0} onClick={() => onMove(section.id, -1)}><ChevronUp/></button><button aria-label={`${section.title} 아래로 이동`} disabled={index === sections.length - 1} onClick={() => onMove(section.id, 1)}><ChevronDown/></button></span>}
+    {grouping && <button className={`layer-check ${checked.includes(section.id) ? 'checked' : ''}`} aria-label={`${layerLabel(section)} 그룹 선택`} onClick={() => toggleChecked(section.id)}>{checked.includes(section.id) ? <Check/> : '선택'}</button>}
+    <button className="layer-main" onClick={() => onSelect(section.id)}><GripVertical/><span><b>{String(index + 1).padStart(2, '0')}</b>{layerLabel(section)}</span></button>
+    {!grouping && <span className="layer-move"><button aria-label={`${layerLabel(section)} 위로 이동`} disabled={index === 0} onClick={() => onMove(section.id, -1)}><ChevronUp/></button><button aria-label={`${layerLabel(section)} 아래로 이동`} disabled={index === sections.length - 1} onClick={() => onMove(section.id, 1)}><ChevronDown/></button></span>}
   </div>
   const entries: React.ReactNode[] = []
   sections.forEach((section, index) => {
@@ -808,10 +826,9 @@ function RichTextEditor({ label, value, onChange, rows = 3 }: { label: string; v
     if (next !== sanitizeRichText(value)) onChange(next)
   }
   const syncWhileTyping = () => {
-    // Korean IME also emits input events while a syllable or a word break is
-    // still being composed. Saving at that instant can reapply old markup and
-    // make a space appear to be ignored, so wait for compositionend instead.
-    if (!composingRef.current) commitValue()
+    // The editable DOM owns text while typing. Persist once on blur instead of
+    // creating an undo snapshot for every Korean syllable or space.
+    if (composingRef.current) return
   }
   const applyCommand = (command: string, commandValue?: string) => {
     const editor = ref.current
@@ -828,7 +845,7 @@ function RichTextEditor({ label, value, onChange, rows = 3 }: { label: string; v
     document.execCommand(command, false, commandValue)
     onChange(sanitizeRichText(editor.innerHTML))
   }
-  return <div className="field rich-text-field"><span>{label}</span><div className="rich-text-toolbar" onMouseDown={event => event.preventDefault()}><button type="button" aria-label="굵게" title="선택 문장 굵게 · 선택하지 않으면 전체 적용" onClick={() => applyCommand('bold')}><strong>B</strong></button><span className="rich-text-divider"/>{RICH_TEXT_COLORS.map(color => <button key={color.value} type="button" aria-label={`${color.label} 글자색`} title={`${color.label} · 선택하지 않으면 전체 적용`} className="rich-text-color" style={{ '--swatch': color.value } as React.CSSProperties} onClick={() => applyCommand('foreColor', color.value)}/>) }<span className="rich-text-divider"/>{RICH_TEXT_SIZES.map(size => <button key={size.value} type="button" title={`글자 크기 ${size.label} · 선택하지 않으면 전체 적용`} className="rich-text-size" onClick={() => applyCommand('fontSize', size.command)}>{size.label}</button>)}</div><div ref={ref} className="rich-text-editor" role="textbox" aria-label={label} aria-multiline={rows > 1} contentEditable suppressContentEditableWarning data-rows={rows} onFocus={() => { focusedRef.current = true }} onBlur={() => { focusedRef.current = false; commitValue() }} onCompositionStart={() => { composingRef.current = true }} onCompositionEnd={() => { composingRef.current = false; commitValue() }} onInput={syncWhileTyping}/><small className="rich-text-hint">문장을 드래그해 서식을 적용하세요. 선택하지 않으면 전체 문장에 적용됩니다.</small></div>
+  return <div className="field rich-text-field"><span>{label}</span><div className="rich-text-toolbar" onMouseDown={event => event.preventDefault()}><button type="button" aria-label="굵게" title="선택 문장 굵게 · 선택하지 않으면 전체 적용" onClick={() => applyCommand('bold')}><strong>B</strong></button><span className="rich-text-divider"/>{RICH_TEXT_COLORS.map(color => <button key={color.value} type="button" aria-label={`${color.label} 글자색`} title={`${color.label} · 선택하지 않으면 전체 적용`} className="rich-text-color" style={{ '--swatch': color.value } as React.CSSProperties} onClick={() => applyCommand('foreColor', color.value)}/>) }<span className="rich-text-divider"/>{RICH_TEXT_SIZES.map(size => <button key={size.value} type="button" title={`글자 크기 ${size.label} · 선택하지 않으면 전체 적용`} className="rich-text-size" onClick={() => applyCommand('fontSize', size.command)}>{size.label}</button>)}</div><div ref={ref} className="rich-text-editor" role="textbox" aria-label={label} aria-multiline={rows > 1} contentEditable suppressContentEditableWarning data-rows={rows} onFocus={() => { focusedRef.current = true }} onBlur={() => { focusedRef.current = false; commitValue() }} onCompositionStart={() => { composingRef.current = true }} onCompositionEnd={() => { composingRef.current = false }} onInput={syncWhileTyping}/><small className="rich-text-hint">문장을 드래그해 서식을 적용하세요. 선택하지 않으면 전체 문장에 적용됩니다.</small></div>
 }
 
 function MultilineText({ value }: { value: string }) {

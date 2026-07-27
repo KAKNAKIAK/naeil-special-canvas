@@ -9,6 +9,20 @@ const MIGRATION_BACKUP_KEY = 'naeil-special-canvas:migration-backups:v1'
 export interface WorkspaceState { activeId: string; projects: Project[]; projectFiles?: Record<string, string> }
 export interface MigrationBackup { id: string; projectId: string; migratedAt: string; sourceSchemaVersion: string; project: unknown }
 
+/** Chromium's IndexedDB can occasionally stall instead of rejecting. Never let it hold the editor loading screen forever. */
+export function loadWorkspaceWithTimeout(timeoutMs = 3500): Promise<WorkspaceState | undefined> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error('WORKSPACE_LOAD_TIMEOUT')), timeoutMs)
+    loadWorkspace().then(value => {
+      window.clearTimeout(timer)
+      resolve(value)
+    }).catch(error => {
+      window.clearTimeout(timer)
+      reject(error)
+    })
+  })
+}
+
 export async function saveMigrationBackup(result: MigrationResult): Promise<void> {
   if (!result.migrated || !result.backup) return
   const backups = await get<MigrationBackup[]>(MIGRATION_BACKUP_KEY) || []
