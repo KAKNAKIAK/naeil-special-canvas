@@ -31,7 +31,10 @@ export function normalizeReferenceMediaSlots(type: SectionType, items: string[],
   // The first revision of the 2행 이미지 preset used two images on the left
   // and one on the right. Preserve its right image (slot 2) when old work is
   // reopened, then normalize it into the current left/right two-image format.
-  if (type === 'caption-grid') return mediaIds.length >= 3 ? [mediaIds[0] || '', mediaIds[2] || ''] : [mediaIds[0] || '', mediaIds[1] || '']
+  if (type === 'caption-grid') {
+    const legacyNormalized = mediaIds.length >= 3 && items.length <= 2 ? [mediaIds[0] || '', mediaIds[2] || ''] : mediaIds
+    return Array.from({ length: items.length }, (_, index) => legacyNormalized[index] || '')
+  }
   const slotCount = items.length + (type === 'timeline' ? 1 : 0)
   return Array.from({ length: slotCount }, (_, index) => mediaIds[index] || '')
 }

@@ -23,4 +23,12 @@ export default defineConfig({
   server: { port: 4173, strictPort: true },
   preview: { port: 4174, strictPort: true },
   build: { target: 'es2022' },
+  test: {
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
+  },
 })
