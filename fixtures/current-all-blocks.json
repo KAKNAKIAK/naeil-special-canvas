@@ -17,7 +17,7 @@
     { "id": "timeline", "type": "timeline", "eyebrow": "Category Label", "title": "제목", "body": "본문", "items": ["09:00 | 일정 제목 | 일정 본문"], "timelineDayStarts": [0], "timelineHeroVisible": true, "mediaIds": ["", ""], "mediaLayout": "auto", "contentLayout": "text-top", "note": "", "background": "white" },
     { "id": "menu", "type": "menu-zigzag", "eyebrow": "Category Label", "title": "제목", "body": "본문", "items": ["제목 | 본문"], "menuItemReversed": [false], "mediaIds": [""], "mediaLayout": "auto", "contentLayout": "text-top", "note": "", "background": "white" },
     { "id": "offer", "type": "offer", "eyebrow": "Category Label", "title": "제목", "body": "본문", "items": ["특전"], "mediaIds": [], "mediaLayout": "auto", "contentLayout": "text-top", "listStyle": "offer", "note": "", "background": "white" },
-    { "id": "caption", "type": "caption-grid", "eyebrow": "Category Label", "title": "제목", "body": "본문", "items": ["캡션"], "mediaIds": [""], "mediaLayout": "auto", "contentLayout": "text-top", "note": "", "background": "white" }
+    { "id": "caption", "type": "caption-grid", "eyebrow": "Category Label", "title": "제목", "body": "본문", "items": ["제목 | 설명", "제목 | 설명"], "mediaIds": ["", ""], "mediaLayout": "auto", "contentLayout": "text-top", "note": "", "background": "white" }
   ],
   "assets": []
 }

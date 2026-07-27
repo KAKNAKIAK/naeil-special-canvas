@@ -4,11 +4,11 @@ import { normalizeContentGroups } from './content-groups'
 
 export const SECTION_LABELS: Record<SectionType, string> = {
   text: '텍스트', image: '이미지', list: '목록', table: '간략 일정표', 'icon-card': '아이콘 카드', offer: '가격·특전',
-  'caption-grid': '캡션 이미지 그리드', 'menu-zigzag': '이미지·설명 카드', timeline: '상세 일정표',
+  'caption-grid': '2행 이미지', 'menu-zigzag': '이미지·설명 카드', timeline: '상세 일정표',
 }
 
 export const GROUPS = [
-  { name: '', types: ['text', 'image', 'list', 'icon-card', 'table', 'timeline', 'menu-zigzag'] },
+  { name: '', types: ['text', 'image', 'list', 'icon-card', 'table', 'timeline', 'menu-zigzag', 'caption-grid'] },
 ] as const
 
 const legacyImageTypes = new Set(['media-full', 'media-pair', 'media-grid', 'media-mosaic', 'destination-chapter', 'hotel-showcase', 'resort-section', 'golf-course', 'facility-section', 'food-gallery'])
@@ -28,6 +28,10 @@ export function referenceMediaSlot(type: SectionType, itemIndex: number) {
 
 export function normalizeReferenceMediaSlots(type: SectionType, items: string[], mediaIds: string[]) {
   if (type !== 'caption-grid' && type !== 'menu-zigzag' && type !== 'timeline') return mediaIds
+  // The first revision of the 2행 이미지 preset used two images on the left
+  // and one on the right. Preserve its right image (slot 2) when old work is
+  // reopened, then normalize it into the current left/right two-image format.
+  if (type === 'caption-grid') return mediaIds.length >= 3 ? [mediaIds[0] || '', mediaIds[2] || ''] : [mediaIds[0] || '', mediaIds[1] || '']
   const slotCount = items.length + (type === 'timeline' ? 1 : 0)
   return Array.from({ length: slotCount }, (_, index) => mediaIds[index] || '')
 }
@@ -77,7 +81,7 @@ export function makeSection(type: SectionType): Section {
     table: { ...placeholder, items: [] },
     'icon-card': { ...placeholder, items: [] },
     offer: { ...placeholder, items: ['첫 번째 특전 또는 조건', '두 번째 특전 또는 조건', '세 번째 특전 또는 조건'] },
-    'caption-grid': { ...placeholder, items: ['리조트 객실', '전 객실 발코니', '키즈 클럽', '4만평 규모의 워터파크'] },
+    'caption-grid': { ...placeholder, items: ['제목 | 설명', '제목 | 설명'] },
     'menu-zigzag': { ...placeholder, items: ['제목 | 본문'] },
     timeline: { eyebrow: '01. 골든패스 초콜릿 열차', title: '스위스 패밀리 금까기 상품 특전', body: 'The chocolate train\n매년 5월부터 9월까지 한시적 운행되는 골든패스 초콜릿 열차는 몽트뢰에서부터 밀크 초콜릿을 처음으로 만든 까이에 초콜릿 박물관과 그뤼에르 치즈 마을을 방문하는 세계 유일한 초콜릿 테마 열차', items: ['09:50 | 몽트뢰 출발 | 초콜릿 열차에서 제공하는 따뜻한 음료와 크루아상으로 간단한 아침 식사', '10:50 | 초콜릿 버스 환승 | 몽보봉 도착 후 초콜릿 버스로 환승', '11:10 | 그뤼에르 치즈 공장 | La Maison du Gruyère 방문', '12:10 | 그뤼에르 마을 | 자유시간(약 2시간)\\n* 추천 일정\\n- 그뤼에르 성 방문\\n- 퐁뒤, 라클렛 등 치즈 요리 점심'] },
   }
