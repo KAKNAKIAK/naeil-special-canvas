@@ -37,6 +37,17 @@ export function patchLayoutItem(items: MediaLayoutItem[], assetId: string, patch
   })
 }
 
+export function swapCustomLayoutPlacements(items: MediaLayoutItem[], firstAssetId: string, secondAssetId: string): MediaLayoutItem[] {
+  const first = items.find(item => item.assetId === firstAssetId)
+  const second = items.find(item => item.assetId === secondAssetId)
+  if (!first || !second) return items
+  return items.map(item => item.assetId === firstAssetId
+    ? { ...second, assetId: firstAssetId }
+    : item.assetId === secondAssetId
+      ? { ...first, assetId: secondAssetId }
+      : item)
+}
+
 function arrange(ids: string[], placements: Array<[number, number, number, number]>): MediaLayoutItem[] {
   return ids.map((assetId, index) => { const [column, row, columnSpan, rowSpan] = placements[index] || [1 + (index % 2) * 6, 7 + Math.floor((index - placements.length) / 2) * 2, 6, 2]; return item(assetId, column, row, columnSpan, rowSpan) })
 }
