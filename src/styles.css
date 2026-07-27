@@ -143,3 +143,6 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 /* 장소 비교 이미지: 왼쪽 2분할 장소와 오른쪽 와이드 장소를 한 덩어리로 보여 준다. */
 .caption-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0;padding:0 14px 36px}.caption-grid figure{margin:0;background:#fff}.caption-grid .special-media-frame{height:252px}.caption-grid .special-media-frame>img,.caption-grid .special-media-placeholder{display:block;width:100%;height:252px;object-fit:cover}.caption-grid figcaption{min-height:70px;padding:10px 8px;display:grid;place-items:center;color:#333;text-align:center}.caption-grid figcaption strong{font-size:20px;font-weight:600}.caption-grid figcaption span{margin-top:4px;color:#657276;font-size:12px;line-height:1.5;white-space:pre-wrap}
 
+/* Every multi-line editor can grow vertically; formatting controls stay mouse-only so Tab follows the text fields. */
+.field textarea,.rich-text-editor{resize:vertical;overflow:auto}.rich-text-editor{min-height:58px}.rich-text-editor[data-rows="3"]{min-height:78px}
+
