@@ -42,50 +42,13 @@ function arrange(ids: string[], placements: Array<[number, number, number, numbe
 }
 function preset(id: string, label: string, detail: string, ids: string[], placements: Array<[number, number, number, number]>): LayoutPreset { return { id, label, detail, items: arrange(ids, placements) } }
 
-export function layoutPresetsFor(assetIds: string[], orientationById: Record<string, ImageOrientation>): LayoutPreset[] {
+export function layoutPresetsFor(assetIds: string[], _orientationById: Record<string, ImageOrientation>): LayoutPreset[] {
   if (assetIds.length < 3) return []
-  const portrait = assetIds.filter(id => orientationById[id] === 'portrait')
-  const landscape = assetIds.filter(id => orientationById[id] === 'landscape')
-  const square = assetIds.filter(id => !orientationById[id] || orientationById[id] === 'square')
-  const other = (primary: string) => assetIds.filter(id => id !== primary)
-
-  if (assetIds.length === 3 && portrait.length === 1 && landscape.length >= 2) {
-    const hero = portrait[0], rest = other(hero)
-    return [
-      preset('portrait-left', '세로 강조 왼쪽', '세로 1장 + 가로 2장', [hero, ...rest], [[1,1,7,4],[8,1,5,2],[8,3,5,2]]),
-      preset('portrait-right', '세로 강조 오른쪽', '세로 1장 + 가로 2장', [hero, ...rest], [[6,1,7,4],[1,1,5,2],[1,3,5,2]]),
-    ]
-  }
-  if (assetIds.length === 3 && landscape.length === 1 && portrait.length >= 2) {
-    const hero = landscape[0], rest = other(hero)
-    return [
-      preset('landscape-top', '가로 강조 위', '가로 1장 + 세로 2장', [hero, ...rest], [[1,1,12,2],[1,3,6,3],[7,3,6,3]]),
-      preset('landscape-bottom', '가로 강조 아래', '가로 1장 + 세로 2장', [...rest, hero], [[1,1,6,3],[7,1,6,3],[1,4,12,2]]),
-    ]
-  }
-  if (assetIds.length === 3 && portrait.length >= 3) {
-    return [
-      preset('portrait-triptych', '세로 3단', '세로 이미지 3장', assetIds, [[1,1,4,4],[5,1,4,4],[9,1,4,4]]),
-      preset('portrait-center', '가운데 강조', '가운데 이미지를 크게', assetIds, [[1,1,3,4],[4,1,6,4],[10,1,3,4]]),
-    ]
-  }
-  if (assetIds.length === 3 && landscape.length >= 3) {
-    return [
-      preset('landscape-hero-top', '상단 와이드', '가로 이미지 3장', assetIds, [[1,1,12,2],[1,3,6,2],[7,3,6,2]]),
-      preset('landscape-triptych', '가로 3단', '균등한 가로 이미지', assetIds, [[1,1,12,1],[1,2,12,1],[1,3,12,1]]),
-    ]
-  }
-
-  const hero = portrait[0] || landscape[0] || square[0] || assetIds[0]
-  const rest = other(hero)
-  const isPortraitHero = orientationById[hero] === 'portrait'
-  return isPortraitHero
-    ? [
-      preset('gallery-portrait-left', '세로 대표 왼쪽', '다중 이미지 갤러리', [hero, ...rest], [[1,1,7,5],[8,1,5,2],[8,3,5,2],[8,5,5,1]]),
-      preset('gallery-portrait-right', '세로 대표 오른쪽', '다중 이미지 갤러리', [hero, ...rest], [[6,1,7,5],[1,1,5,2],[1,3,5,2],[1,5,5,1]]),
-    ]
-    : [
-      preset('gallery-landscape-top', '가로 대표 위', '다중 이미지 갤러리', [hero, ...rest], [[1,1,12,2],[1,3,6,3],[7,3,6,3],[1,6,12,1]]),
-      preset('gallery-landscape-left', '대표 + 우측 그리드', '다중 이미지 갤러리', [hero, ...rest], [[1,1,7,4],[8,1,5,2],[8,3,5,2],[1,5,12,1]]),
-    ]
+  // Keep the choice set stable regardless of source ratio. The layout itself
+  // controls cropping, so designers do not have to interpret different menus.
+  return [
+    preset('wide-top', '상단 와이드', '상단 대표 이미지 + 하단 2장', assetIds, [[1,1,12,2],[1,3,6,3],[7,3,6,3]]),
+    preset('portrait-left', '세로 강조 왼쪽', '왼쪽 대표 이미지 + 우측 2장', assetIds, [[1,1,7,4],[8,1,5,2],[8,3,5,2]]),
+    preset('portrait-right', '세로 강조 오른쪽', '오른쪽 대표 이미지 + 좌측 2장', assetIds, [[6,1,7,4],[1,1,5,2],[1,3,5,2]]),
+  ]
 }

@@ -2,6 +2,7 @@ const { app, BrowserWindow, shell, ipcMain, net, dialog } = require('electron')
 const { autoUpdater } = require('electron-updater')
 const path = require('node:path')
 const fs = require('node:fs/promises')
+const { lookupGettyContent } = require('./getty-lookup.cjs')
 
 const APP_ID = 'kr.co.naeiltour.specialcanvas'
 let isInstallingUpdate = false
@@ -229,6 +230,24 @@ ipcMain.handle('naeil-special:download-image', async (_event, rawUrl) => {
   const bytes = await response.arrayBuffer()
   if (bytes.byteLength > 30 * 1024 * 1024) throw new Error('이미지 파일이 30MB를 초과합니다.')
   return { bytes, contentType: response.headers.get('content-type') || 'application/octet-stream' }
+})
+
+ipcMain.handle('naeil-special:lookup-getty-content', async (_event, rawContentId) => {
+  const fetchGettyHtml = async url => {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 15_000)
+    try {
+      const response = await net.fetch(url, {
+        headers: { 'User-Agent': app.userAgentFallback, 'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.7' },
+        signal: controller.signal,
+      })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      return response.text()
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+  return lookupGettyContent(rawContentId, fetchGettyHtml)
 })
 
 app.on('window-all-closed', () => app.quit())

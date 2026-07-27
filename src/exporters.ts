@@ -12,6 +12,7 @@ declare global {
   interface Window {
     naeilSpecialDesktop?: {
       downloadImage: (url: string) => Promise<{ bytes: ArrayBuffer; contentType: string }>
+      lookupGettyContent: (contentId: string) => Promise<{ contentId: string; title: string; pageUrl: string; thumbUrl: string; status: 'found' | 'not_found' | 'error'; errorMessage: string }>
       saveProjectFile: (payload: { contents: string; filename: string; path?: string }) => Promise<{ canceled: boolean; path?: string }>
       getFilePath?: (file: File) => string
       requestClose: () => void
