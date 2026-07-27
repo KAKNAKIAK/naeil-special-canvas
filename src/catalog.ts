@@ -39,6 +39,14 @@ export function normalizeReferenceMediaSlots(type: SectionType, items: string[],
   return Array.from({ length: slotCount }, (_, index) => mediaIds[index] || '')
 }
 
+/** Keeps image-library cleanup from deleting assets rendered by a canvas block. */
+export function canvasLinkedAssetIds(sections: Section[]) {
+  return [...new Set(sections.flatMap(section => [
+    ...section.mediaIds,
+    ...normalizeLayoutBoxes(section).flatMap(box => box.assetIds || []),
+  ]).filter(Boolean))]
+}
+
 /**
  * Timeline day markers are stored as item indexes. When one schedule item is
  * removed, later day indexes must move up as well. If that item was the only

@@ -1,6 +1,6 @@
 import JSZip from 'jszip'
 import { describe, expect, it, vi } from 'vitest'
-import { GROUPS, createSeedProject, isLegacyBaliSeed, makeSection, normalizeLayoutBoxes, normalizeProject, normalizeReferenceMediaSlots, referenceMediaSlot, timelineDayStartsAfterItemRemoval } from './catalog'
+import { GROUPS, canvasLinkedAssetIds, createSeedProject, isLegacyBaliSeed, makeSection, normalizeLayoutBoxes, normalizeProject, normalizeReferenceMediaSlots, referenceMediaSlot, timelineDayStartsAfterItemRemoval } from './catalog'
 import { runQa } from './qa'
 import { assetsManifestJson, canvasDocumentJson, exportZip, manifestJson, manifestYaml, projectLoadJson, standaloneHtml } from './exporters'
 import { CURRENT_CATALOG_VERSION, CURRENT_SCHEMA_VERSION, isDirectProjectPayload, migrateProject } from './migrations'
@@ -29,6 +29,7 @@ describe('delivery QA', () => {
     expect(referenceMediaSlot('menu-zigzag', 1)).toBe(1)
     expect(referenceMediaSlot('timeline', 0)).toBe(1)
   })
+  it('keeps every image linked by a canvas block during library cleanup', () => { const standard = makeSection('image'); standard.layoutBoxes = normalizeLayoutBoxes(standard).map(box => box.kind === 'media' ? { ...box, assetIds: ['standard'] } : box); standard.mediaIds = ['legacy']; const reference = makeSection('caption-grid'); reference.mediaIds = ['reference', '']; expect(canvasLinkedAssetIds([standard, reference]).sort()).toEqual(['legacy', 'reference', 'standard']) })
   it('keeps detailed-schedule day labels aligned after removing an individual schedule item', () => {
     expect(timelineDayStartsAfterItemRemoval([0, 2], 3, 1)).toEqual([0, 1])
     expect(timelineDayStartsAfterItemRemoval([0, 2], 3, 2)).toEqual([0])

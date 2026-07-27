@@ -6,6 +6,9 @@ set "WEBRUNTIME=%LOCALAPPDATA%\NaeilSpecialCanvasRuntime"
 set "DESKTOPRUNTIME=%LOCALAPPDATA%\NaeilSpecialCanvasDesktopBuild"
 set "PUBLISH_ARG="
 if /i "%~1"=="--publish" set "PUBLISH_ARG=--publish always"
+if not defined GH_TOKEN (
+  for /f "usebackq delims=" %%i in (`gh auth token 2^>nul`) do set "GH_TOKEN=%%i"
+)
 
 echo [1/4] 웹앱 검사 및 빌드
 call "%~dp0build-naeil-special-canvas.bat" <nul
