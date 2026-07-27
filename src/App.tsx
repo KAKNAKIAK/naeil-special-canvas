@@ -76,6 +76,7 @@ export default function App() {
   const [leftTab, setLeftTab] = useState<LeftTab>('blocks')
   const [zoom, setZoom] = useState(100)
   const [savedAt, setSavedAt] = useState<Date | null>(null)
+  const [linkedSaveStatus, setLinkedSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle')
   const [history, setHistory] = useState<Project[]>([])
   const [future, setFuture] = useState<Project[]>([])
   const [exportOpen, setExportOpen] = useState(false)
@@ -94,6 +95,8 @@ export default function App() {
   const projectRef = useRef(project)
   const projectsRef = useRef<Project[]>([])
   const projectFilesRef = useRef<Record<string, string>>({})
+  const linkedSaveSnapshotRef = useRef<Record<string, string>>({})
+  const linkedSaveSequenceRef = useRef(0)
   const imageSelectionRef = useRef({ sectionId: '', boxId: '', specialMediaIndex: null as number | null })
 
   useEffect(() => { projectRef.current = project }, [project])
@@ -111,6 +114,31 @@ export default function App() {
     setReady(true)
   }) }, [])
   useEffect(() => { if (!ready || readOnly) return; const timer = setTimeout(() => { const current = projectsRef.current; const next = current.some(item => item.id === project.id) ? current.map(item => item.id === project.id ? project : item) : [project, ...current]; projectsRef.current = next; setProjects(next); saveWorkspace({ activeId: project.id, projects: next, projectFiles: projectFilesRef.current }).then(() => setSavedAt(new Date())) }, 450); return () => clearTimeout(timer) }, [project, ready, readOnly])
+  useEffect(() => {
+    if (!ready || readOnly) return
+    const desktop = window.naeilSpecialDesktop
+    const filePath = projectFiles[project.id]
+    if (!desktop || !filePath) { setLinkedSaveStatus('idle'); return }
+    const contents = projectLoadJson(project)
+    const snapshot = `${filePath}\n${contents}`
+    if (linkedSaveSnapshotRef.current[project.id] === snapshot) { setLinkedSaveStatus('saved'); return }
+    setLinkedSaveStatus('saving')
+    const timer = setTimeout(async () => {
+      const sequence = ++linkedSaveSequenceRef.current
+      try {
+        const result = await desktop.saveProjectFile({ contents, filename: `${safeName(project.name)}.json`, path: filePath })
+        if (sequence !== linkedSaveSequenceRef.current) return
+        if (result.canceled) throw new Error('AUTO_SAVE_CANCELED')
+        linkedSaveSnapshotRef.current[project.id] = snapshot
+        setLinkedSaveStatus('saved')
+        setSavedAt(new Date())
+      } catch {
+        if (sequence !== linkedSaveSequenceRef.current) return
+        setLinkedSaveStatus('failed')
+      }
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [project, projectFiles, ready, readOnly])
   useEffect(() => {
     const desktop = window.naeilSpecialDesktop
     if (!desktop) return
@@ -166,18 +194,21 @@ export default function App() {
     const current = projectRef.current
     const currentProjects = projectsRef.current
     const nextProjects = currentProjects.some(item => item.id === current.id) ? currentProjects.map(item => item.id === current.id ? current : item) : [current, ...currentProjects]
+    const contents = projectLoadJson(current)
     const desktop = window.naeilSpecialDesktop
     if (!desktop) {
-      downloadText(projectLoadJson(current), `${safeName(current.name)}.json`, 'application/json;charset=utf-8')
+      downloadText(contents, `${safeName(current.name)}.json`, 'application/json;charset=utf-8')
       setToast('프로젝트 JSON을 다운로드했습니다.')
       return true
     }
     try {
-      const result = await desktop.saveProjectFile({ contents: projectLoadJson(current), filename: `${safeName(current.name)}.json`, path: saveAs ? undefined : projectFilesRef.current[current.id] })
+      const result = await desktop.saveProjectFile({ contents, filename: `${safeName(current.name)}.json`, path: saveAs ? undefined : projectFilesRef.current[current.id] })
       if (result.canceled || !result.path) return false
       const nextFiles = { ...projectFilesRef.current, [current.id]: result.path }
       projectFilesRef.current = nextFiles
+      linkedSaveSnapshotRef.current[current.id] = `${result.path}\n${contents}`
       setProjectFiles(nextFiles)
+      setLinkedSaveStatus('saved')
       projectsRef.current = nextProjects
       setProjects(nextProjects)
       await saveWorkspace({ activeId: current.id, projects: nextProjects, projectFiles: nextFiles })
@@ -435,7 +466,42 @@ export default function App() {
   function applySectionLayoutPreset(sectionId: string, items: MediaLayoutItem[]) { commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section) return; section.mediaLayout = 'custom'; section.mediaLayoutItems = normalizeCustomLayout(section.mediaIds, items) }); setToast('비율 기반 레이아웃을 적용했습니다.') }
   function swapSectionMedia(sectionId: string, fromAssetId: string, toAssetId: string) { if (fromAssetId === toAssetId) return; commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section) return; const boxes = normalizeLayoutBoxes(section); const targetBox = boxes.find(box => (box.kind === 'media' || box.kind === 'image') && (box.assetIds || []).includes(fromAssetId) && (box.assetIds || []).includes(toAssetId)); if (!targetBox) return; const swappedIds = (targetBox.assetIds || []).map(id => id === fromAssetId ? toAssetId : id === toAssetId ? fromAssetId : id); const nextBoxes = boxes.map(box => box.id === targetBox.id ? { ...box, assetIds: swappedIds } : box); section.layoutBoxes = nextBoxes; section.mediaIds = mediaIdsFromBoxes(nextBoxes); if (section.mediaLayout === 'custom') section.mediaLayoutItems = normalizeCustomLayout(section.mediaIds, section.mediaLayoutItems).map(item => item.assetId === fromAssetId ? { ...item, assetId: toAssetId } : item.assetId === toAssetId ? { ...item, assetId: fromAssetId } : item) }); setToast('이미지 위치를 바꿨습니다.') }
   function importManifest(file?: File) {
-    if (!file || readOnly) return; file.text().then(async text => { try { const parsed = file.name.endsWith('.json') ? JSON.parse(text) : YAML.parse(text); const seed = createSeedProject(); if (isDirectProjectPayload(parsed)) { const result = migrateProject(parsed); await saveMigrationBackup(result); const direct = normalizeProject(result.project); setHistory(h => [...h, deepCopy(project)]); setProject(direct); setSelectedId(direct.sections[0]?.id || ''); setToast(result.migrated ? '이전 프로젝트를 최신 형식으로 안전하게 변환했습니다.' : '프로젝트를 불러왔습니다.'); return } const next: Project = normalizeProject({ ...seed, id: parsed.id || seed.id, name: parsed.name || seed.name, layout: parsed.layout || seed.layout, category: parsed.category || seed.category, deliveryStage: parsed.delivery_stage || seed.deliveryStage, page: { ...seed.page, ...(parsed.page || {}) }, campaign: parsed.campaign || seed.campaign, sections: (parsed.sections || []).map((s: Partial<Section>) => ({ ...makeSection(normalizeSectionType(s.type)), ...s, type: normalizeSectionType(s.type), id: s.id || crypto.randomUUID(), mediaIds: (s as unknown as { media?: string[] }).media || s.mediaIds || [], mediaLayoutItems: (s as unknown as { media_layout_items?: MediaLayoutItem[] }).media_layout_items || s.mediaLayoutItems || [], contentLayout: (s as unknown as { content_layout?: Section['contentLayout'] }).content_layout || s.contentLayout || 'text-top', layoutBoxes: (s as unknown as { layout_boxes?: BlockBox[] }).layout_boxes || s.layoutBoxes || [], tableHeaders: (s as unknown as { table_headers?: string[] }).table_headers || s.tableHeaders || [], tableRows: (s as unknown as { table_rows?: string[][] }).table_rows || s.tableRows || [], iconCards: (s as unknown as { icon_cards?: IconCardItem[] }).icon_cards || s.iconCards || [] })), assets: (parsed.media || []).map((a: Record<string, string>) => ({ id: a.id || crypto.randomUUID(), name: a.src || 'image.jpg', src: '', provider: a.provider || 'provided', sourceId: a.source_id || '', assetStage: a.asset_stage || 'reference', usageScope: a.usage_scope || '', rightsStatus: a.rights_status || 'unknown', qualityGrade: a.quality_grade || 'B', approval: a.approval || 'pending', evidence: a.evidence || '', alt: a.alt || '' })) } as Project); setHistory(h => [...h, deepCopy(project)]); setProject(next); setSelectedId(next.sections[0]?.id || ''); setToast('매니페스트를 불러왔습니다.') } catch (error) { setToast(error instanceof Error ? error.message : '파일 형식을 확인해 주세요.') } })
+    if (!file || readOnly) return
+    file.text().then(async text => {
+      try {
+        const isJson = file.name.toLowerCase().endsWith('.json')
+        const parsed = isJson ? JSON.parse(text) : YAML.parse(text)
+        const desktopFilePath = isJson ? window.naeilSpecialDesktop?.getFilePath?.(file) || '' : ''
+        const seed = createSeedProject()
+        if (isDirectProjectPayload(parsed)) {
+          const result = migrateProject(parsed)
+          await saveMigrationBackup(result)
+          const direct = normalizeProject(result.project)
+          if (desktopFilePath) {
+            const nextFiles = { ...projectFilesRef.current, [direct.id]: desktopFilePath }
+            projectFilesRef.current = nextFiles
+            linkedSaveSnapshotRef.current[direct.id] = `${desktopFilePath}\n${projectLoadJson(direct)}`
+            setProjectFiles(nextFiles)
+            setLinkedSaveStatus('saved')
+          } else {
+            setLinkedSaveStatus('idle')
+          }
+          setHistory(h => [...h, deepCopy(project)])
+          setProject(direct)
+          setSelectedId(direct.sections[0]?.id || '')
+          setToast(result.migrated ? desktopFilePath ? '이전 프로젝트를 최신 형식으로 변환하고 JSON 파일을 연결했습니다.' : '이전 프로젝트를 최신 형식으로 안전하게 변환했습니다.' : desktopFilePath ? '프로젝트를 불러오고 JSON 파일을 연결했습니다.' : '프로젝트를 불러왔습니다.')
+          return
+        }
+        const next: Project = normalizeProject({ ...seed, id: parsed.id || seed.id, name: parsed.name || seed.name, layout: parsed.layout || seed.layout, category: parsed.category || seed.category, deliveryStage: parsed.delivery_stage || seed.deliveryStage, page: { ...seed.page, ...(parsed.page || {}) }, campaign: parsed.campaign || seed.campaign, sections: (parsed.sections || []).map((s: Partial<Section>) => ({ ...makeSection(normalizeSectionType(s.type)), ...s, type: normalizeSectionType(s.type), id: s.id || crypto.randomUUID(), mediaIds: (s as unknown as { media?: string[] }).media || s.mediaIds || [], mediaLayoutItems: (s as unknown as { media_layout_items?: MediaLayoutItem[] }).media_layout_items || s.mediaLayoutItems || [], contentLayout: (s as unknown as { content_layout?: Section['contentLayout'] }).content_layout || s.contentLayout || 'text-top', layoutBoxes: (s as unknown as { layout_boxes?: BlockBox[] }).layout_boxes || s.layoutBoxes || [], tableHeaders: (s as unknown as { table_headers?: string[] }).table_headers || s.tableHeaders || [], tableRows: (s as unknown as { table_rows?: string[][] }).table_rows || s.tableRows || [], iconCards: (s as unknown as { icon_cards?: IconCardItem[] }).icon_cards || s.iconCards || [] })), assets: (parsed.media || []).map((a: Record<string, string>) => ({ id: a.id || crypto.randomUUID(), name: a.src || 'image.jpg', src: '', provider: a.provider || 'provided', sourceId: a.source_id || '', assetStage: a.asset_stage || 'reference', usageScope: a.usage_scope || '', rightsStatus: a.rights_status || 'unknown', qualityGrade: a.quality_grade || 'B', approval: a.approval || 'pending', evidence: a.evidence || '', alt: a.alt || '' })) } as Project)
+        setHistory(h => [...h, deepCopy(project)])
+        setProject(next)
+        setSelectedId(next.sections[0]?.id || '')
+        setLinkedSaveStatus('idle')
+        setToast('매니페스트를 불러왔습니다.')
+      } catch (error) {
+        setToast(error instanceof Error ? error.message : '파일 형식을 확인해 주세요.')
+      }
+    })
   }
   function newProject() { const next = createSeedProject(); setProjects(current => [next, ...current]); setProject(next); setSelectedId(''); setSelectedBoxId(''); setSelectedItemIndex(null); setSelectedSpecialMediaIndex(null); setHistory([]); setFuture([]); setLeftTab('blocks'); setProjectBoardOpen(false); setToast('빈 캔버스를 만들었습니다.') }
   function openNewBlankCanvas() { if (!window.confirm('새 빈 캔버스를 시작할까요?\n현재 작업은 이 PC에 자동 저장되어 프로젝트에서 다시 열 수 있습니다.')) return; newProject() }
@@ -461,10 +527,23 @@ export default function App() {
   }
 
   if (!ready) return <div className="loading"><div className="brand-mark brand-logo"><img src={BRAND_LOGO} alt="내일투어"/></div><p>캔버스를 준비하는 중…</p></div>
+  const linkedJsonPath = projectFiles[project.id] || ''
+  const savedAtLabel = savedAt?.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+  const saveStatusLabel = linkedJsonPath
+    ? linkedSaveStatus === 'saving'
+      ? '연결 JSON 저장 중'
+      : linkedSaveStatus === 'failed'
+        ? '연결 JSON 자동 저장 실패'
+        : savedAtLabel
+          ? `연결 JSON 저장됨 ${savedAtLabel}`
+          : '연결 JSON 자동 저장 준비'
+    : savedAtLabel
+      ? `로컬 자동 저장됨 ${savedAtLabel}`
+      : '저장 준비 중'
   return <div className={`app-shell ${readOnly ? 'is-readonly' : ''} ${leftTab === 'images' ? 'image-library-expanded' : ''}`}>
     <header className="topbar">
       <div className="brand"><button className="brand-mark brand-logo" type="button" aria-label="새 빈 캔버스 열기" title="새 빈 캔버스 열기" onClick={openNewBlankCanvas}><img src={BRAND_LOGO} alt="내일투어"/></button><div><strong>내일스패셜 메이킹 스튜디오</strong><span>{readOnly ? 'Read-only handoff' : `Making studio · v${APP_VERSION}`}</span></div></div>
-      <div className="project-title"><input aria-label="프로젝트 이름" value={project.name} onChange={e => commit(d => { d.name = e.target.value })}/><span>{savedAt ? `자동 저장됨 ${savedAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}` : '저장 준비 중'}</span></div>
+      <div className="project-title"><input aria-label="프로젝트 이름" value={project.name} onChange={e => commit(d => { d.name = e.target.value })}/><span title={linkedJsonPath || undefined}>{saveStatusLabel}</span></div>
       <div className="toolbar-actions">
         {!readOnly && <div className="file-wrap"><button className="ghost-button" onClick={() => setFileMenuOpen(open => !open)}><Save size={16}/> 파일 <ChevronDown size={14}/></button>{fileMenuOpen && <FileMenu hasLinkedFile={Boolean(projectFiles[project.id])} onImport={() => { setFileMenuOpen(false); importRef.current?.click() }} onSave={() => { setFileMenuOpen(false); void saveProjectFile() }} onSaveAs={() => { setFileMenuOpen(false); void saveProjectFile(true) }} onClose={() => { setFileMenuOpen(false); requestAppClose() }}/>}</div>}
         <button className="icon-button mobile-only" aria-label="왼쪽 패널" onClick={() => setMobilePanel('left')}><Menu size={18}/></button>
@@ -503,7 +582,7 @@ export default function App() {
           </div>
         </div>
       </div>
-      <div className="statusbar"><span><span className="status-dot"/> {readOnly ? '공유 스냅샷' : '로컬 자동 저장'}</span><span>{CANVAS_WIDTH}px 고정 · {project.sections.length}개 블록 · {project.assets.length}개 이미지</span><div className="zoom"><button aria-label="축소" onClick={() => setZoom(z => Math.max(35, z - 5))}><Minus/></button><input aria-label="확대 비율" type="range" min="35" max="120" value={zoom} onChange={e => setZoom(Number(e.target.value))}/><button aria-label="확대" onClick={() => setZoom(z => Math.min(120, z + 5))}><Plus/></button><button onClick={() => setZoom(100)}>{zoom}%</button></div></div>
+      <div className="statusbar"><span><span className="status-dot"/> {readOnly ? '공유 스냅샷' : linkedJsonPath ? '연결 JSON 자동 저장' : '로컬 자동 저장'}</span><span>{CANVAS_WIDTH}px 고정 · {project.sections.length}개 블록 · {project.assets.length}개 이미지</span><div className="zoom"><button aria-label="축소" onClick={() => setZoom(z => Math.max(35, z - 5))}><Minus/></button><input aria-label="확대 비율" type="range" min="35" max="120" value={zoom} onChange={e => setZoom(Number(e.target.value))}/><button aria-label="확대" onClick={() => setZoom(z => Math.min(120, z + 5))}><Plus/></button><button onClick={() => setZoom(100)}>{zoom}%</button></div></div>
     </main>
 
     <aside className={`right-panel ${mobilePanel === 'right' ? 'mobile-open' : ''}`}>
@@ -935,7 +1014,7 @@ function IconCardEditor({ cards, onChange }: { cards: IconCardItem[]; onChange: 
   const add = () => onChange([...cards, { id: crypto.randomUUID(), icon: 'sparkles', title: '새 카드 제목', body: '짧은 설명을 입력하세요.', tone: 'teal' }])
   return <section className="icon-card-editor"><p className="binding-note">카드마다 아이콘·제목·설명·강조색을 편집합니다. 2장은 2열, 3장 이상은 3열로 표시됩니다.</p>{cards.map((card, index) => <article key={card.id}><header><b>카드 {index + 1}</b><button aria-label={`카드 ${index + 1} 삭제`} onClick={() => onChange(cards.filter(item => item.id !== card.id))}><X/></button></header><div className="two-fields"><Field label="아이콘"><select value={card.icon} onChange={event => update(card.id, { icon: event.target.value })}>{ICON_CARD_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field><Field label="강조색"><select value={card.tone} onChange={event => update(card.id, { tone: event.target.value as IconCardItem['tone'] })}><option value="teal">청록</option><option value="orange">주황</option><option value="green">초록</option></select></Field></div><Field label="카드 제목"><input value={card.title} onChange={event => update(card.id, { title: event.target.value })}/></Field><Field label="카드 설명"><textarea rows={2} value={card.body} onChange={event => update(card.id, { body: event.target.value })}/></Field></article>)}<button className="add-row" onClick={add}><Plus/> 카드 추가</button></section>
 }
-function FileMenu({ hasLinkedFile, onImport, onSave, onSaveAs, onClose }: { hasLinkedFile: boolean; onImport: () => void; onSave: () => void; onSaveAs: () => void; onClose: () => void }) { return <div className="file-menu"><button onClick={onImport}><Upload/><span><b>불러오기</b><small>로드용 JSON 또는 YAML 파일 열기</small></span></button><hr/><button onClick={onSave}><Save/><span><b>저장</b><small>{hasLinkedFile ? '연결된 JSON 파일에 덮어쓰기' : 'JSON 파일 위치를 선택해 저장'}</small></span></button><button onClick={onSaveAs}><FileJson/><span><b>다른 이름으로 저장</b><small>새 JSON 파일을 만들어 저장</small></span></button><hr/><button className="file-menu-close" onClick={onClose}><LogOut/><span><b>종료</b><small>저장 여부를 확인한 뒤 종료</small></span></button></div> }
+function FileMenu({ hasLinkedFile, onImport, onSave, onSaveAs, onClose }: { hasLinkedFile: boolean; onImport: () => void; onSave: () => void; onSaveAs: () => void; onClose: () => void }) { return <div className="file-menu"><button onClick={onImport}><Upload/><span><b>불러오기</b><small>로드용 JSON 또는 YAML 파일 열기</small></span></button><hr/><button onClick={onSave}><Save/><span><b>저장</b><small>{hasLinkedFile ? '연결된 JSON 파일에 바로 덮어쓰기' : 'JSON 파일 위치를 선택해 저장'}</small></span></button><button onClick={onSaveAs}><FileJson/><span><b>다른 이름으로 저장</b><small>새 JSON 파일을 만들고 자동 저장 연결</small></span></button><hr/><button className="file-menu-close" onClick={onClose}><LogOut/><span><b>종료</b><small>저장 여부를 확인한 뒤 종료</small></span></button></div> }
 function ExportMenu({ onExport }: { onExport: (kind: string) => void }) { return <div className="export-menu"><button onClick={() => onExport('html')}><Eye/><span><b>독립 HTML</b><small>이미지 URL을 유지한 단일 HTML 파일</small></span></button><button onClick={() => onExport('load-json')}><FileJson/><span><b>로드용 JSON 파일</b><small>스튜디오에서 다시 불러올 수 있는 원본</small></span></button><button onClick={() => onExport('zip')}><Archive/><span><b>디자이너 전달 ZIP</b><small>index.html · assets 이미지 · 로드용 JSON</small></span></button></div> }
 
 function PreviewModal({ project, onClose }: { project: Project; onClose: () => void }) {

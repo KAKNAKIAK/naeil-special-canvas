@@ -13,6 +13,7 @@ declare global {
     naeilSpecialDesktop?: {
       downloadImage: (url: string) => Promise<{ bytes: ArrayBuffer; contentType: string }>
       saveProjectFile: (payload: { contents: string; filename: string; path?: string }) => Promise<{ canceled: boolean; path?: string }>
+      getFilePath?: (file: File) => string
       requestClose: () => void
       onSaveBeforeClose: (callback: (mode: 'save' | 'save-as') => void) => () => void
       completeSaveBeforeClose: (saved: boolean) => void

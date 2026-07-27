@@ -1,8 +1,9 @@
-const { contextBridge, ipcRenderer } = require('electron')
+const { contextBridge, ipcRenderer, webUtils } = require('electron')
 
 contextBridge.exposeInMainWorld('naeilSpecialDesktop', {
   downloadImage: (url) => ipcRenderer.invoke('naeil-special:download-image', url),
   saveProjectFile: (payload) => ipcRenderer.invoke('naeil-special:save-project-file', payload),
+  getFilePath: (file) => webUtils.getPathForFile(file),
   requestClose: () => ipcRenderer.send('naeil-special:request-close'),
   onSaveBeforeClose: (callback) => {
     const listener = (_event, mode) => callback(mode)
