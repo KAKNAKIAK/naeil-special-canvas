@@ -365,9 +365,43 @@ export default function App() {
   function moveImageFlowBox(sectionId: string, boxId: string, direction: -1 | 1) { commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || (section.type !== 'image' && section.type !== 'text')) return; const boxes = normalizeLayoutBoxes(section).filter(box => section.type === 'image' || box.kind === 'content' || box.kind === 'text').slice().sort((a, b) => a.row - b.row || a.column - b.column); const index = boxes.findIndex(box => box.id === boxId); const target = index + direction; if (index < 0 || target < 0 || target >= boxes.length) return; [boxes[index], boxes[target]] = [boxes[target], boxes[index]]; let row = 1; section.layoutBoxes = boxes.map((box, order) => { const rowSpan = box.kind === 'content' || box.kind === 'text' ? 4 : 6; const next = { ...box, column: 1, row, columnSpan: 12, rowSpan, zIndex: order + 1 }; row += rowSpan + 1; return next }) }); setToast(direction < 0 ? '카드를 위로 옮겼습니다.' : '카드를 아래로 옮겼습니다.') }
   const isItemPreset = (type: SectionType) => ITEM_PRESET_TYPES.has(type)
   const newPresetItem = (type: SectionType) => type === 'offer' ? '새 특전 또는 조건' : type === 'caption-grid' ? '새 이미지 캡션' : type === 'menu-zigzag' ? '제목 | 본문' : type === 'timeline' ? '00:00 | 새 일정 | 설명을 입력하세요.' : '새 핵심 내용'
+  const newCaptionGridRow = () => [newPresetItem('caption-grid'), newPresetItem('caption-grid')]
   const newIconCard = (): IconCardItem => ({ id: crypto.randomUUID(), icon: 'sparkles', title: '새 카드 제목', body: '짧은 설명을 입력하세요.', tone: 'teal' })
   const cloneIconCard = (card: IconCardItem): IconCardItem => ({ ...deepCopy(card), id: crypto.randomUUID() })
-  function addPresetItem(sectionId: string) { let index = -1; commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || !isItemPreset(section.type)) return; if (section.type === 'table') { const headers = section.tableHeaders?.length ? section.tableHeaders : ['구분', '내용']; const rows = section.tableRows || []; section.tableRows = [...rows, headers.map((_, column) => column === 0 ? nextDayLabel(rows) : '')]; index = section.tableRows.length - 1 } else if (section.type === 'icon-card') { section.iconCards = [...(section.iconCards || []), newIconCard()]; index = section.iconCards.length - 1 } else { const previousItems = section.items; section.items = [...previousItems, newPresetItem(section.type)]; index = section.items.length - 1; if (section.type === 'menu-zigzag') section.menuItemReversed = [...previousItems.map((_, itemIndex) => Boolean(section.menuItemReversed?.[itemIndex])), false]; if (REFERENCE_LAYOUT_TYPES.has(section.type)) section.mediaIds = [...normalizeReferenceMediaSlots(section.type, previousItems, section.mediaIds), ''] } }); if (index >= 0) { selectSectionItem(sectionId, index); setToast('항목을 추가했습니다.') } }
+  function addPresetItem(sectionId: string) {
+    let index = -1
+    let addedCaptionGridRow = false
+    commit(draft => {
+      const section = draft.sections.find(item => item.id === sectionId)
+      if (!section || !isItemPreset(section.type)) return
+      if (section.type === 'table') {
+        const headers = section.tableHeaders?.length ? section.tableHeaders : ['구분', '내용']
+        const rows = section.tableRows || []
+        section.tableRows = [...rows, headers.map((_, column) => column === 0 ? nextDayLabel(rows) : '')]
+        index = section.tableRows.length - 1
+      } else if (section.type === 'icon-card') {
+        section.iconCards = [...(section.iconCards || []), newIconCard()]
+        index = section.iconCards.length - 1
+      } else {
+        const previousItems = section.items
+        if (section.type === 'caption-grid') {
+          section.items = [...previousItems, ...newCaptionGridRow()]
+          section.mediaIds = [...normalizeReferenceMediaSlots(section.type, previousItems, section.mediaIds), '', '']
+          index = previousItems.length
+          addedCaptionGridRow = true
+        } else {
+          section.items = [...previousItems, newPresetItem(section.type)]
+          index = section.items.length - 1
+          if (section.type === 'menu-zigzag') section.menuItemReversed = [...previousItems.map((_, itemIndex) => Boolean(section.menuItemReversed?.[itemIndex])), false]
+          if (REFERENCE_LAYOUT_TYPES.has(section.type)) section.mediaIds = [...normalizeReferenceMediaSlots(section.type, previousItems, section.mediaIds), '']
+        }
+      }
+    })
+    if (index >= 0) {
+      selectSectionItem(sectionId, index)
+      setToast(addedCaptionGridRow ? '이미지 2개를 한 행으로 추가했습니다.' : '항목을 추가했습니다.')
+    }
+  }
   function addTimelineDay(sectionId: string) { let index = -1; let day = 0; commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || section.type !== 'timeline') return; const previousItems = section.items; const dayStarts = section.timelineDayStarts?.length ? [...section.timelineDayStarts] : [0]; section.items = [...previousItems, newPresetItem('timeline')]; index = section.items.length - 1; section.timelineDayStarts = [...dayStarts, index]; section.mediaIds = [...normalizeReferenceMediaSlots('timeline', previousItems, section.mediaIds), '']; day = section.timelineDayStarts.length }); if (index >= 0) { selectSectionItem(sectionId, index); setToast(`${day}일차를 추가했습니다.`) } }
   function deleteTimelineDay(sectionId: string, dayIndex: number) {
     let nextIndex: number | null = null
@@ -389,7 +423,42 @@ export default function App() {
     setSelectedSpecialMediaIndex(null)
     setToast(`${dayIndex + 1}일차를 삭제했습니다.`)
   }
-  function insertPresetItem(sectionId: string, index: number, placement: 'above' | 'below') { let nextIndex = -1; commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || !isItemPreset(section.type)) return; const insertAt = Math.max(0, index + (placement === 'below' ? 1 : 0)); if (section.type === 'table') { const headers = section.tableHeaders?.length ? section.tableHeaders : ['구분', '내용']; const rows = section.tableRows || []; section.tableRows = [...rows.slice(0, insertAt), headers.map((_, column) => column === 0 ? nextDayLabel(rows) : ''), ...rows.slice(insertAt)]; nextIndex = insertAt } else if (section.type === 'icon-card') { const cards = section.iconCards || []; section.iconCards = [...cards.slice(0, insertAt), newIconCard(), ...cards.slice(insertAt)]; nextIndex = insertAt } else { const previousItems = section.items; const previousReversed = previousItems.map((_, itemIndex) => Boolean(section.menuItemReversed?.[itemIndex])); section.mediaIds = REFERENCE_LAYOUT_TYPES.has(section.type) ? normalizeReferenceMediaSlots(section.type, previousItems, section.mediaIds) : section.mediaIds; section.items = [...previousItems.slice(0, insertAt), newPresetItem(section.type), ...previousItems.slice(insertAt)]; if (section.type === 'menu-zigzag') section.menuItemReversed = [...previousReversed.slice(0, insertAt), false, ...previousReversed.slice(insertAt)]; if (section.type === 'timeline') section.timelineDayStarts = (section.timelineDayStarts || []).map(start => start > insertAt ? start + 1 : start); if (REFERENCE_LAYOUT_TYPES.has(section.type)) section.mediaIds.splice(referenceMediaSlot(section.type, insertAt), 0, ''); nextIndex = insertAt } }); if (nextIndex >= 0) { selectSectionItem(sectionId, nextIndex); setToast(placement === 'above' ? '위에 항목을 추가했습니다.' : '아래에 항목을 추가했습니다.') } }
+  function insertPresetItem(sectionId: string, index: number, placement: 'above' | 'below') {
+    let nextIndex = -1
+    let addedCaptionGridRow = false
+    commit(draft => {
+      const section = draft.sections.find(item => item.id === sectionId)
+      if (!section || !isItemPreset(section.type)) return
+      const insertAt = section.type === 'caption-grid'
+        ? Math.max(0, Math.floor(index / 2) * 2 + (placement === 'below' ? 2 : 0))
+        : Math.max(0, index + (placement === 'below' ? 1 : 0))
+      if (section.type === 'table') {
+        const headers = section.tableHeaders?.length ? section.tableHeaders : ['구분', '내용']
+        const rows = section.tableRows || []
+        section.tableRows = [...rows.slice(0, insertAt), headers.map((_, column) => column === 0 ? nextDayLabel(rows) : ''), ...rows.slice(insertAt)]
+        nextIndex = insertAt
+      } else if (section.type === 'icon-card') {
+        const cards = section.iconCards || []
+        section.iconCards = [...cards.slice(0, insertAt), newIconCard(), ...cards.slice(insertAt)]
+        nextIndex = insertAt
+      } else {
+        const previousItems = section.items
+        const previousReversed = previousItems.map((_, itemIndex) => Boolean(section.menuItemReversed?.[itemIndex]))
+        section.mediaIds = REFERENCE_LAYOUT_TYPES.has(section.type) ? normalizeReferenceMediaSlots(section.type, previousItems, section.mediaIds) : section.mediaIds
+        const insertedItems = section.type === 'caption-grid' ? newCaptionGridRow() : [newPresetItem(section.type)]
+        section.items = [...previousItems.slice(0, insertAt), ...insertedItems, ...previousItems.slice(insertAt)]
+        if (section.type === 'menu-zigzag') section.menuItemReversed = [...previousReversed.slice(0, insertAt), false, ...previousReversed.slice(insertAt)]
+        if (section.type === 'timeline') section.timelineDayStarts = (section.timelineDayStarts || []).map(start => start > insertAt ? start + 1 : start)
+        if (REFERENCE_LAYOUT_TYPES.has(section.type)) section.mediaIds.splice(referenceMediaSlot(section.type, insertAt), 0, ...insertedItems.map(() => ''))
+        nextIndex = insertAt
+        addedCaptionGridRow = section.type === 'caption-grid'
+      }
+    })
+    if (nextIndex >= 0) {
+      selectSectionItem(sectionId, nextIndex)
+      setToast(addedCaptionGridRow ? `${placement === 'above' ? '위에' : '아래에'} 이미지 2개를 한 행으로 추가했습니다.` : placement === 'above' ? '위에 항목을 추가했습니다.' : '아래에 항목을 추가했습니다.')
+    }
+  }
   function duplicatePresetItem(sectionId: string, index: number) { let nextIndex = -1; commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || !isItemPreset(section.type)) return; const insertAt = index + 1; if (section.type === 'table') { const rows = section.tableRows || []; const row = rows[index]; if (!row) return; section.tableRows = [...rows.slice(0, insertAt), [...row], ...rows.slice(insertAt)]; nextIndex = insertAt } else if (section.type === 'icon-card') { const cards = section.iconCards || []; const card = cards[index]; if (!card) return; section.iconCards = [...cards.slice(0, insertAt), cloneIconCard(card), ...cards.slice(insertAt)]; nextIndex = insertAt } else { const value = section.items[index]; if (value === undefined) return; const reversed = section.items.map((_, itemIndex) => Boolean(section.menuItemReversed?.[itemIndex])); section.mediaIds = REFERENCE_LAYOUT_TYPES.has(section.type) ? normalizeReferenceMediaSlots(section.type, section.items, section.mediaIds) : section.mediaIds; section.items = [...section.items.slice(0, insertAt), value, ...section.items.slice(insertAt)]; if (section.type === 'menu-zigzag') section.menuItemReversed = [...reversed.slice(0, insertAt), reversed[index], ...reversed.slice(insertAt)]; if (section.type === 'timeline') section.timelineDayStarts = (section.timelineDayStarts || []).map(start => start > index ? start + 1 : start); if (REFERENCE_LAYOUT_TYPES.has(section.type)) { const slot = referenceMediaSlot(section.type, index); section.mediaIds.splice(slot + 1, 0, section.mediaIds[slot] || '') } nextIndex = insertAt } }); if (nextIndex >= 0) { selectSectionItem(sectionId, nextIndex); setToast('항목을 복제했습니다.') } }
   function updatePresetItem(sectionId: string, index: number, value: string | string[] | Partial<IconCardItem>) { commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section) return; if (section.type === 'table' && Array.isArray(value)) section.tableRows = (section.tableRows || []).map((row, rowIndex) => rowIndex === index ? value : row); else if (section.type === 'icon-card' && !Array.isArray(value) && typeof value !== 'string') section.iconCards = (section.iconCards || []).map((card, itemIndex) => itemIndex === index ? { ...card, ...value } : card); else if (typeof value === 'string') section.items = section.items.map((item, itemIndex) => itemIndex === index ? value : item) }, true) }
   function movePresetItem(sectionId: string, index: number, direction: -1 | 1) { commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || !isItemPreset(section.type)) return; const values = section.type === 'table' ? section.tableRows || [] : section.type === 'icon-card' ? section.iconCards || [] : section.items; const target = index + direction; if (target < 0 || target >= values.length) return; [values[index], values[target]] = [values[target], values[index]]; if (section.type === 'table') section.tableRows = [...values as string[][]]; else if (section.type === 'icon-card') section.iconCards = [...values as IconCardItem[]]; else { section.items = [...values as string[]]; if (section.type === 'menu-zigzag') { const reversed = section.items.map((_, itemIndex) => Boolean(section.menuItemReversed?.[itemIndex])); [reversed[index], reversed[target]] = [reversed[target], reversed[index]]; section.menuItemReversed = reversed } if (REFERENCE_LAYOUT_TYPES.has(section.type)) { section.mediaIds = normalizeReferenceMediaSlots(section.type, values as string[], section.mediaIds); const fromSlot = referenceMediaSlot(section.type, index); const targetSlot = referenceMediaSlot(section.type, target); [section.mediaIds[fromSlot], section.mediaIds[targetSlot]] = [section.mediaIds[targetSlot], section.mediaIds[fromSlot]] } } }); setSelectedItemIndex(Math.max(0, index + direction)); setSelectedSpecialMediaIndex(null) }
@@ -1001,7 +1070,7 @@ function SectionView({ section, assets, selected, readOnly, activeBoxId, activeI
     onDragLeave: (event: React.DragEvent<HTMLElement>) => event.currentTarget.classList.remove('is-drop-target'),
     onDrop: (event: React.DragEvent<HTMLElement>) => { event.preventDefault(); event.currentTarget.classList.remove('is-drop-target'); const fromAssetId = event.dataTransfer.getData('application/x-naeil-library-asset') || event.dataTransfer.getData('application/x-naeil-canvas-asset') || event.dataTransfer.getData('text/plain'); if (fromAssetId) onSwapMedia(section.id, fromAssetId, assetId) },
   })
-  const itemActions = (itemIndex: number, itemTotal: number) => selected && activeItemIndex === itemIndex ? <div className="preset-item-actions" onClick={event => event.stopPropagation()}>{section.type !== 'menu-zigzag' && <button aria-label="위에 항목 추가" title="위에 추가" onClick={() => onInsertItem(section.id, itemIndex, 'above')}><Plus/></button>}<button aria-label="항목 위로" title="위로 이동" disabled={itemIndex === 0} onClick={() => onMoveItem(section.id, itemIndex, -1)}><ChevronUp/></button><button aria-label="항목 아래로" title="아래로 이동" disabled={itemIndex === itemTotal - 1} onClick={() => onMoveItem(section.id, itemIndex, 1)}><ChevronDown/></button>{section.type === 'menu-zigzag' ? <button aria-label="이미지와 텍스트 위치 반전" title="이미지·텍스트 반전" onClick={() => onToggleMenuItemLayout(section.id, itemIndex)}><ArrowLeftRight/></button> : <button aria-label="아래에 항목 추가" title="아래에 추가" onClick={() => onInsertItem(section.id, itemIndex, 'below')}><Plus/></button>}<button aria-label="항목 복제" title="복제" onClick={() => onDuplicateItem(section.id, itemIndex)}><Copy/></button><button aria-label="항목 삭제" title="삭제" className="danger" onClick={() => onDeleteItem(section.id, itemIndex)}><Trash2/></button></div> : null
+  const itemActions = (itemIndex: number, itemTotal: number) => selected && activeItemIndex === itemIndex ? <div className="preset-item-actions" onClick={event => event.stopPropagation()}>{section.type !== 'menu-zigzag' && <button aria-label={section.type === 'caption-grid' ? '위에 이미지 1행 추가' : '위에 항목 추가'} title={section.type === 'caption-grid' ? '위에 이미지 1행 추가' : '위에 추가'} onClick={() => onInsertItem(section.id, itemIndex, 'above')}><Plus/></button>}<button aria-label="항목 위로" title="위로 이동" disabled={itemIndex === 0} onClick={() => onMoveItem(section.id, itemIndex, -1)}><ChevronUp/></button><button aria-label="항목 아래로" title="아래로 이동" disabled={itemIndex === itemTotal - 1} onClick={() => onMoveItem(section.id, itemIndex, 1)}><ChevronDown/></button>{section.type === 'menu-zigzag' ? <button aria-label="이미지와 텍스트 위치 반전" title="이미지·텍스트 반전" onClick={() => onToggleMenuItemLayout(section.id, itemIndex)}><ArrowLeftRight/></button> : <button aria-label={section.type === 'caption-grid' ? '아래에 이미지 1행 추가' : '아래에 항목 추가'} title={section.type === 'caption-grid' ? '아래에 이미지 1행 추가' : '아래에 추가'} onClick={() => onInsertItem(section.id, itemIndex, 'below')}><Plus/></button>}<button aria-label="항목 복제" title="복제" onClick={() => onDuplicateItem(section.id, itemIndex)}><Copy/></button><button aria-label="항목 삭제" title="삭제" className="danger" onClick={() => onDeleteItem(section.id, itemIndex)}><Trash2/></button></div> : null
   const updateTableCell = (rowIndex: number, cellIndex: number, value: string) => onUpdateItem(rowIndex, tableRows.map((row, index) => index === rowIndex ? row.map((cell, column) => column === cellIndex ? value : cell) : row)[rowIndex])
   const fullText = <CommonText value={{ eyebrow: section.eyebrow, title: section.title, body: section.body }} readOnly={readOnly} onChange={onSectionChange}>
     {section.type === 'table' && <div className="section-table">{[
@@ -1020,7 +1089,7 @@ function SectionView({ section, assets, selected, readOnly, activeBoxId, activeI
   }
   const tools = selected && <div className="section-tools" onClick={e => e.stopPropagation()}><button aria-label="블록 위로 이동" disabled={index === 0} onClick={() => onMove(section.id, -1)}><ChevronUp/></button><button aria-label="블록 아래로 이동" disabled={index === total - 1} onClick={() => onMove(section.id, 1)}><ChevronDown/></button><button aria-label="블록 복제" onClick={() => onDuplicate(section.id)}><Copy/></button><button aria-label="블록 삭제" className="danger" onClick={() => onDelete(section.id)}><Trash2/></button></div>
   if (SPECIAL_LAYOUT_TYPES.has(section.type)) return <section data-section-id={section.id} className={`page-section bg-white type-${section.type} ${selected ? 'selected' : ''} ${section.hidden ? 'is-hidden' : ''}`} onClick={onSelect}>
-    {tools}<div className="section-type-tag">{SECTION_LABELS[section.type]}</div><SpecialLayoutSection section={section} assets={assets} dragProps={specialDragProps} selectedItemIndex={activeItemIndex} selectedSpecialMediaIndex={activeSpecialMediaIndex} readOnly={readOnly} onSelectItem={onSelectItem} onSelectMedia={onSelectSpecialMedia} onClearTimelineMedia={onClearTimelineMedia} onDeleteTimelineDay={onDeleteTimelineDay} onSectionChange={onSectionChange} onUpdateItem={onUpdateItem} itemActions={itemActions}/>{selected && <div className={`preset-canvas-add ${section.type === 'timeline' ? 'timeline-canvas-add' : ''}`} onClick={event => event.stopPropagation()}>{section.type === 'timeline' ? <><button onClick={() => onAddItem(section.id)}><Plus/> 일정 추가</button><button onClick={() => onAddTimelineDay(section.id)}><CalendarDays/> 일차 추가</button></> : <button onClick={() => onAddItem(section.id)}><Plus/> 항목 추가</button>}</div>}{section.note && <InlineText tag="div" className="designer-note" value={section.note} multiline readOnly={readOnly} onChange={note => onSectionChange({ note })}>DESIGN NOTE · {section.note}</InlineText>}
+    {tools}<div className="section-type-tag">{SECTION_LABELS[section.type]}</div><SpecialLayoutSection section={section} assets={assets} dragProps={specialDragProps} selectedItemIndex={activeItemIndex} selectedSpecialMediaIndex={activeSpecialMediaIndex} readOnly={readOnly} onSelectItem={onSelectItem} onSelectMedia={onSelectSpecialMedia} onClearTimelineMedia={onClearTimelineMedia} onDeleteTimelineDay={onDeleteTimelineDay} onSectionChange={onSectionChange} onUpdateItem={onUpdateItem} itemActions={itemActions}/>{selected && <div className={`preset-canvas-add ${section.type === 'timeline' ? 'timeline-canvas-add' : ''}`} onClick={event => event.stopPropagation()}>{section.type === 'timeline' ? <><button onClick={() => onAddItem(section.id)}><Plus/> 일정 추가</button><button onClick={() => onAddTimelineDay(section.id)}><CalendarDays/> 일차 추가</button></> : <button onClick={() => onAddItem(section.id)}><Plus/> {section.type === 'caption-grid' ? '이미지 2개 추가' : '항목 추가'}</button>}</div>}{section.note && <InlineText tag="div" className="designer-note" value={section.note} multiline readOnly={readOnly} onChange={note => onSectionChange({ note })}>DESIGN NOTE · {section.note}</InlineText>}
   </section>
   if (section.type === 'text') {
     const flowBoxes = boxes.filter(box => box.kind === 'content' || box.kind === 'text').slice().sort((a, b) => a.row - b.row || a.column - b.column)
@@ -1050,7 +1119,7 @@ function SectionView({ section, assets, selected, readOnly, activeBoxId, activeI
   }
   return <section data-section-id={section.id} className={`page-section bg-white type-${section.type} ${selected ? 'selected' : ''} ${section.hidden ? 'is-hidden' : ''}`} onClick={onSelect}>
     {tools}
-    <div className="section-type-tag">{SECTION_LABELS[section.type]}</div><div className={`section-composition content-layout-${section.contentLayout || 'text-top'}`}>{fullText}{visibleMediaBox && mediaFor(visibleMediaBox)}</div>{selected && isItemPreset && <div className="preset-canvas-add" onClick={event => event.stopPropagation()}><button onClick={() => onAddItem(section.id)}><Plus/> {section.type === 'table' ? '행 추가' : section.type === 'icon-card' ? '카드 추가' : '항목 추가'}</button></div>}{section.note && <InlineText tag="div" className="designer-note" value={section.note} multiline readOnly={readOnly} onChange={note => onSectionChange({ note })}>DESIGN NOTE · {section.note}</InlineText>}
+    <div className="section-type-tag">{SECTION_LABELS[section.type]}</div><div className={`section-composition content-layout-${section.contentLayout || 'text-top'}`}>{fullText}{visibleMediaBox && mediaFor(visibleMediaBox)}</div>{selected && isItemPreset && <div className="preset-canvas-add" onClick={event => event.stopPropagation()}><button onClick={() => onAddItem(section.id)}><Plus/> {section.type === 'table' ? '행 추가' : section.type === 'icon-card' ? '카드 추가' : section.type === 'caption-grid' ? '이미지 2개 추가' : '항목 추가'}</button></div>}{section.note && <InlineText tag="div" className="designer-note" value={section.note} multiline readOnly={readOnly} onChange={note => onSectionChange({ note })}>DESIGN NOTE · {section.note}</InlineText>}
   </section>
 }
 
