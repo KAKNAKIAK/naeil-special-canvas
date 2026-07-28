@@ -25,6 +25,34 @@ declare global {
 function download(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = filename; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
+export type ZipExportProgress = {
+  stage: 'downloading' | 'archiving'
+  completed: number
+  total: number
+  percent: number
+  currentLabel: string
+}
+const IMAGE_DOWNLOAD_TIMEOUT_MS = 15_000
+function withTimeout<T>(task: Promise<T>, message: string, timeoutMs = IMAGE_DOWNLOAD_TIMEOUT_MS) {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(message)), timeoutMs)
+    task.then(value => { clearTimeout(timeout); resolve(value) }, error => { clearTimeout(timeout); reject(error) })
+  })
+}
+async function fetchImageWithTimeout(url: string) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), IMAGE_DOWNLOAD_TIMEOUT_MS)
+  try {
+    const response = await fetch(url, { signal: controller.signal })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    return await response.blob()
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error('이미지 다운로드 시간이 초과되었습니다. (15초)')
+    throw error
+  } finally {
+    clearTimeout(timeout)
+  }
+}
 export function downloadText(text: string, filename: string, type = 'text/plain;charset=utf-8') { download(new Blob([text], { type }), filename) }
 export function projectManifest(project: Project) {
   return {
@@ -167,28 +195,30 @@ function escapeHtml(value: string) { return value.replace(/[&<>'"]/g, ch => ({ '
 
 export async function exportPng(node: HTMLElement, name: string) { const url = await toPng(node, { cacheBust: true, pixelRatio: 2, backgroundColor: '#ffffff' }); const anchor = document.createElement('a'); anchor.download = `${name}.png`; anchor.href = url; anchor.click() }
 
-export async function exportZip(project: Project) {
+export async function exportZip(project: Project, onProgress?: (progress: ZipExportProgress) => void) {
   const zip = new JSZip()
   const packagedProject = JSON.parse(JSON.stringify(project)) as Project
   const failures: string[] = []
+  const totalAssets = packagedProject.assets.length
 
-  for (const asset of packagedProject.assets) {
+  for (const [assetIndex, asset] of packagedProject.assets.entries()) {
     const original = project.assets.find(item => item.id === asset.id)
     if (!original?.src) continue
+    const completed = assetIndex + 1
+    const currentLabel = original.name || original.src || original.id
+    const percent = Math.min(90, Math.round((completed / Math.max(totalAssets, 1)) * 90))
+    onProgress?.({ stage: 'downloading', completed, total: totalAssets, percent, currentLabel })
     try {
       let sourceBlob: Blob
       if (original.src.startsWith('data:')) {
-        const response = await fetch(original.src)
-        sourceBlob = await response.blob()
+        sourceBlob = await withTimeout(fetch(original.src).then(response => response.blob()), '이미지 변환 시간이 초과되었습니다. (15초)')
       } else {
         const desktopDownload = window.naeilSpecialDesktop?.downloadImage
         if (desktopDownload) {
-          const downloaded = await desktopDownload(original.src)
+          const downloaded = await withTimeout(desktopDownload(original.src), '이미지 다운로드 시간이 초과되었습니다. (15초)')
           sourceBlob = new Blob([downloaded.bytes], { type: downloaded.contentType })
         } else {
-          const response = await fetch(original.src)
-          if (!response.ok) throw new Error(`HTTP ${response.status}`)
-          sourceBlob = await response.blob()
+          sourceBlob = await fetchImageWithTimeout(original.src)
         }
       }
       const converted = await convertDesignerImage(sourceBlob)
@@ -205,37 +235,68 @@ export async function exportZip(project: Project) {
     }
   }
 
+  onProgress?.({
+    stage: 'archiving',
+    completed: totalAssets,
+    total: totalAssets,
+    percent: 90,
+    currentLabel: 'ZIP 압축 패키징 중…',
+  })
+
   zip.file('index.html', standaloneHtml(packagedProject))
   zip.file('로드용-프로젝트.json', projectLoadJson(project))
   zip.file('이미지-패키징-결과.json', JSON.stringify(packagedProject.assets.map(asset => ({ id: asset.id, name: asset.name, source: asset.download?.source || asset.src, status: asset.download?.status || 'pending', packagedPath: asset.download?.packagedPath, transformedFormat: asset.download?.transformedFormat, failureReason: asset.download?.failureReason })), null, 2))
   zip.file('디자이너-전달사항.md', `# ${project.name}\n\n압축을 푼 뒤 **index.html**을 열면 720px PC 시안을 바로 확인할 수 있습니다.\n이미지는 assets 폴더에 함께 들어 있습니다.\n\n- 카테고리: ${project.category}\n- 레이아웃: ${project.layout}\n- 전달 단계: ${project.deliveryStage}\n- 내부 메모: ${project.page.internalMemo || '없음'}\n\n## 이미지 패키징\n- 결과 파일: 이미지-패키징-결과.json\n- 성공: ${packagedProject.assets.filter(asset => asset.download?.status === 'downloaded').length}개\n- 확인 필요: ${packagedProject.assets.filter(asset => asset.download?.status === 'failed').length}개\n\n## 블록별 메모\n${project.sections.map((s, i) => `${i + 1}. ${SECTION_LABELS[s.type]} — ${s.note || '메모 없음'}`).join('\n')}\n\n## QA\n${runQa(project).map(q => `- [${q.level}] ${q.label}: ${q.detail}`).join('\n')}`)
   if (failures.length) zip.file('이미지-다운로드-확인필요.md', `# 다운로드하지 못한 URL 이미지\n\n아래 이미지는 원본 서버의 접근 제한 또는 네트워크 문제로 로컬 파일화하지 못했습니다. index.html에는 원본 URL을 유지했으며, 온라인 상태에서는 그대로 표시됩니다.\n\n${failures.join('\n\n')}\n`)
-  download(await zip.generateAsync({ type: 'blob' }), `${project.name}-designer-handoff.zip`)
+
+  const blob = await zip.generateAsync({ type: 'blob' }, metadata => {
+    const archivePercent = Math.min(100, 90 + Math.round((metadata.percent / 100) * 10))
+    onProgress?.({
+      stage: 'archiving',
+      completed: totalAssets,
+      total: totalAssets,
+      percent: archivePercent,
+      currentLabel: metadata.currentFile ? `압축 패키징 중: ${metadata.currentFile}` : 'ZIP 압축 패키징 중…',
+    })
+  })
+
+  download(blob, `${project.name}-designer-handoff.zip`)
   return failures
 }
 
 async function convertDesignerImage(blob: Blob): Promise<{ blob: Blob; extension: 'jpg' | 'png' }> {
-  const objectUrl = URL.createObjectURL(blob)
-  try {
-    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const element = new Image()
-      element.onload = () => resolve(element)
-      element.onerror = () => reject(new Error('이미지 형식을 JPG 또는 PNG로 변환할 수 없습니다.'))
-      element.src = objectUrl
-    })
-    const canvas = document.createElement('canvas')
-    canvas.width = image.naturalWidth || image.width
-    canvas.height = image.naturalHeight || image.height
-    const context = canvas.getContext('2d')
-    if (!context || !canvas.width || !canvas.height) throw new Error('이미지 크기를 읽을 수 없습니다.')
-    const extension: 'jpg' | 'png' = blob.type.toLowerCase().includes('jpeg') || blob.type.toLowerCase().includes('jpg') ? 'jpg' : 'png'
-    context.drawImage(image, 0, 0)
-    const type = extension === 'jpg' ? 'image/jpeg' : 'image/png'
-    const converted = await new Promise<Blob>((resolve, reject) => canvas.toBlob(result => result ? resolve(result) : reject(new Error('이미지 변환에 실패했습니다.')), type, extension === 'jpg' ? .92 : undefined))
-    return { blob: converted, extension }
-  } finally {
-    URL.revokeObjectURL(objectUrl)
-  }
+  return withTimeout(new Promise<{ blob: Blob; extension: 'jpg' | 'png' }>((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(blob)
+    const element = new Image()
+    element.onload = () => {
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = element.naturalWidth || element.width
+        canvas.height = element.naturalHeight || element.height
+        const context = canvas.getContext('2d')
+        if (!context || !canvas.width || !canvas.height) {
+          URL.revokeObjectURL(objectUrl)
+          return reject(new Error('이미지 크기를 읽을 수 없습니다.'))
+        }
+        const extension: 'jpg' | 'png' = blob.type.toLowerCase().includes('jpeg') || blob.type.toLowerCase().includes('jpg') ? 'jpg' : 'png'
+        context.drawImage(element, 0, 0)
+        const type = extension === 'jpg' ? 'image/jpeg' : 'image/png'
+        canvas.toBlob(result => {
+          URL.revokeObjectURL(objectUrl)
+          if (result) resolve({ blob: result, extension })
+          else reject(new Error('이미지 변환에 실패했습니다.'))
+        }, type, extension === 'jpg' ? .92 : undefined)
+      } catch (err) {
+        URL.revokeObjectURL(objectUrl)
+        reject(err)
+      }
+    }
+    element.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('이미지 형식을 JPG 또는 PNG로 변환할 수 없습니다.'))
+    }
+    element.src = objectUrl
+  }), '이미지 변환 시간이 초과되었습니다. (15초)')
 }
 
 function packageAssetPath(asset: MediaAsset, extension: 'jpg' | 'png') {

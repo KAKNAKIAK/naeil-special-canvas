@@ -4,7 +4,7 @@ import YAML from 'yaml'
 import { canvasLinkedAssetIds, createSampleProject, createSeedProject, GROUPS, isLegacyBaliSeed, makeSection, normalizeLayoutBoxes, normalizeProject, normalizeReferenceMediaSlots, normalizeSectionType, referenceMediaSlot, SECTION_LABELS, timelineDayStartsAfterItemRemoval } from './catalog'
 import { APP_VERSION } from './app-version'
 import { moveSectionUnit, normalizeContentGroups, removeSectionsFromGroups } from './content-groups'
-import { exportZip, parseShareSnapshot, projectLoadJson, standaloneHtml, downloadText } from './exporters'
+import { exportZip, parseShareSnapshot, projectLoadJson, standaloneHtml, downloadText, type ZipExportProgress } from './exporters'
 import { createCustomLayout, FOCUS_OPTIONS, layoutPresetsFor, normalizeCustomLayout, patchLayoutItem, swapCustomLayoutPlacements, type ImageOrientation } from './image-layout'
 import { loadWorkspaceWithTimeout, saveMigrationBackup, saveWorkspace } from './storage'
 import { isDirectProjectPayload, migrateProject } from './migrations'
@@ -79,6 +79,7 @@ export default function App() {
   const [zoom, setZoom] = useState(100)
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const [linkedSaveStatus, setLinkedSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle')
+  const [zipProgress, setZipProgress] = useState<ZipExportProgress | null>(null)
   const [history, setHistory] = useState<Project[]>([])
   const [future, setFuture] = useState<Project[]>([])
   const [exportOpen, setExportOpen] = useState(false)
@@ -672,9 +673,23 @@ export default function App() {
     if (kind === 'html') downloadText(standaloneHtml(project), `${name}.html`, 'text/html;charset=utf-8')
     if (kind === 'load-json') downloadText(projectLoadJson(project), `${name}-로드용.json`, 'application/json;charset=utf-8')
     if (kind === 'zip') {
-      setToast('디자이너 전달 ZIP을 만드는 중입니다…')
-      const failures = await exportZip(project)
-      setToast(failures.length ? `ZIP 생성 완료 · URL 이미지 ${failures.length}개는 확인 목록을 봐주세요.` : '디자이너 전달 ZIP을 만들었습니다.')
+      if (zipProgress) return
+      setZipProgress({
+        stage: 'downloading',
+        completed: 0,
+        total: project.assets.length,
+        percent: 0,
+        currentLabel: 'ZIP 생성 준비 중…',
+      })
+      try {
+        const failures = await exportZip(project, progress => setZipProgress(progress))
+        setToast(failures.length ? `ZIP 생성 완료 · URL 이미지 ${failures.length}개는 확인 목록을 봐주세요.` : '디자이너 전달 ZIP을 만들었습니다.')
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : '알 수 없는 오류'
+        setToast(`ZIP 생성 실패 · ${reason}`)
+      } finally {
+        setZipProgress(null)
+      }
       return
     }
     setToast('내보내기를 완료했습니다.')
@@ -704,7 +719,7 @@ export default function App() {
         <button className="icon-button" aria-label="실행 취소" disabled={!history.length} onClick={undo}><Undo2 size={18}/></button>
         <button className="icon-button" aria-label="다시 실행" disabled={!future.length} onClick={redo}><Redo2 size={18}/></button>
         <div className="tour-output-actions" data-guide="output"><button className="ghost-button" onClick={() => setPreviewOpen(true)}><Eye size={16}/> 미리보기</button>
-        <div className="export-wrap"><button className="primary-button" onClick={() => setExportOpen(!exportOpen)}><Download size={16}/> 내보내기 <ChevronDown size={14}/></button>{exportOpen && <ExportMenu onExport={doExport}/>}</div></div>
+        <div className="export-wrap"><button className="primary-button" disabled={Boolean(zipProgress)} onClick={() => setExportOpen(!exportOpen)}><Download size={16}/> 내보내기 <ChevronDown size={14}/></button>{exportOpen && <ExportMenu onExport={doExport} disabled={Boolean(zipProgress)}/>}</div></div>
         <button className="icon-button mobile-only" aria-label="오른쪽 패널" onClick={() => setMobilePanel('right')}><Settings2 size={18}/></button>
       </div>
     </header>
@@ -748,6 +763,7 @@ export default function App() {
     <input ref={importRef} type="file" accept=".json,.yml,.yaml" hidden onChange={e => importManifest(e.target.files?.[0])}/>
     {blockPickerOpen && <BlockPicker onClose={() => setBlockPickerOpen(false)} onSelect={addSection}/>} 
     {previewOpen && <PreviewModal project={project} onClose={() => setPreviewOpen(false)}/>}
+    {zipProgress && <ZipProgressModal progress={zipProgress}/>}
     {helpOpen && <HelpDrawer version={APP_VERSION} onClose={() => setHelpOpen(false)} onReplay={reopenOnboarding} onOpenBlocks={() => { setHelpOpen(false); setLeftTab('blocks'); setBlockPickerOpen(true) }} onImport={() => { setHelpOpen(false); importRef.current?.click() }}/>}
     {onboardingOpen && <GuidedTour step={onboardingStep} onStep={changeOnboardingStep} onSkip={() => completeOnboarding(false)} onDontShowAgain={() => completeOnboarding(true)} onFinish={() => completeOnboarding(true)}/>}
     {toast && <div className="toast"><Check size={16}/>{toast}</div>}
@@ -1216,7 +1232,11 @@ function IconCardEditor({ cards, onChange }: { cards: IconCardItem[]; onChange: 
   return <section className="icon-card-editor"><p className="binding-note">카드마다 아이콘·제목·설명·강조색을 편집합니다. 2장은 2열, 3장 이상은 3열로 표시됩니다.</p>{cards.map((card, index) => <article key={card.id}><header><b>카드 {index + 1}</b><button aria-label={`카드 ${index + 1} 삭제`} onClick={() => onChange(cards.filter(item => item.id !== card.id))}><X/></button></header><div className="two-fields"><Field label="아이콘"><select value={card.icon} onChange={event => update(card.id, { icon: event.target.value })}>{ICON_CARD_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field><Field label="강조색"><select value={card.tone} onChange={event => update(card.id, { tone: event.target.value as IconCardItem['tone'] })}><option value="teal">청록</option><option value="orange">주황</option><option value="green">초록</option></select></Field></div><Field label="카드 제목"><input value={card.title} onChange={event => update(card.id, { title: event.target.value })}/></Field><Field label="카드 설명"><textarea rows={2} value={card.body} onChange={event => update(card.id, { body: event.target.value })}/></Field></article>)}<button className="add-row" onClick={add}><Plus/> 카드 추가</button></section>
 }
 function FileMenu({ hasLinkedFile, onImport, onSave, onSaveAs, onClose }: { hasLinkedFile: boolean; onImport: () => void; onSave: () => void; onSaveAs: () => void; onClose: () => void }) { return <div className="file-menu"><button onClick={onImport}><Upload/><span><b>불러오기</b><small>로드용 JSON 또는 YAML 파일 열기</small></span></button><hr/><button onClick={onSave}><Save/><span><b>저장</b><small>{hasLinkedFile ? '연결된 JSON 파일에 바로 덮어쓰기' : 'JSON 파일 위치를 선택해 저장'}</small></span></button><button onClick={onSaveAs}><FileJson/><span><b>다른 이름으로 저장</b><small>새 JSON 파일을 만들고 자동 저장 연결</small></span></button><hr/><button className="file-menu-close" onClick={onClose}><LogOut/><span><b>종료</b><small>저장 여부를 확인한 뒤 종료</small></span></button></div> }
-function ExportMenu({ onExport }: { onExport: (kind: string) => void }) { return <div className="export-menu"><button onClick={() => onExport('html')}><Eye/><span><b>독립 HTML</b><small>이미지 URL을 유지한 단일 HTML 파일</small></span></button><button onClick={() => onExport('load-json')}><FileJson/><span><b>로드용 JSON 파일</b><small>스튜디오에서 다시 불러올 수 있는 원본</small></span></button><button onClick={() => onExport('zip')}><Archive/><span><b>디자이너 전달 ZIP</b><small>index.html · assets 이미지 · 로드용 JSON</small></span></button></div> }
+function ExportMenu({ onExport, disabled }: { onExport: (kind: string) => void; disabled?: boolean }) { return <div className="export-menu"><button disabled={disabled} onClick={() => onExport('html')}><Eye/><span><b>독립 HTML</b><small>이미지 URL을 유지한 단일 HTML 파일</small></span></button><button disabled={disabled} onClick={() => onExport('load-json')}><FileJson/><span><b>로드용 JSON 파일</b><small>스튜디오에서 다시 불러올 수 있는 원본</small></span></button><button disabled={disabled} onClick={() => onExport('zip')}><Archive/><span><b>디자이너 전달 ZIP</b><small>index.html · assets 이미지 · 로드용 JSON</small></span></button></div> }
+
+function ZipProgressModal({ progress }: { progress: ZipExportProgress }) {
+  return <div className="modal-backdrop zip-progress-backdrop" role="presentation"><section className="zip-progress-modal" role="dialog" aria-modal="true" aria-labelledby="zip-progress-title"><header><div><p>DESIGNER HANDOFF</p><h2 id="zip-progress-title">디자이너 전달 ZIP 생성 중</h2></div></header><div className="zip-progress-body"><div className="zip-progress-status"><strong>{progress.stage === 'archiving' ? 'ZIP 압축 패키징 중…' : `현재 ${progress.completed} / ${progress.total} 이미지 처리 중`}</strong><span>{progress.percent}%</span></div><div className="zip-progress-track" role="progressbar" aria-valuenow={progress.percent} aria-valuemin={0} aria-valuemax={100}><div className="zip-progress-fill" style={{ width: `${progress.percent}%` }}/></div><p className="zip-progress-label" title={progress.currentLabel}>{progress.currentLabel}</p><div className="zip-progress-guide"><p>이미지를 내려받고 JPG/PNG로 정리한 뒤 ZIP으로 묶습니다. 응답이 없는 이미지는 확인 목록으로 넘깁니다.</p></div></div></section></div>
+}
 
 function PreviewModal({ project, onClose }: { project: Project; onClose: () => void }) {
   return <div className="modal-backdrop preview-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}><section className="preview-modal" role="dialog" aria-modal="true" aria-labelledby="preview-title"><header><div><p>FULL PAGE PREVIEW</p><h2 id="preview-title">{project.name}</h2></div><button aria-label="미리보기 닫기" onClick={onClose}><X/></button></header><div className="preview-modal-body"><iframe title={`${project.name} 전체 미리보기`} srcDoc={standaloneHtml(project)}/></div></section></div>

@@ -5,7 +5,8 @@ export function runQa(project: Project): QaItem[] {
   const mediaRequired = new Set(['image', 'caption-grid', 'menu-zigzag', 'timeline'])
   if (!project.page.title.trim()) items.push({ id: 'page-title', level: 'error', label: '페이지 제목 없음', detail: '고객에게 보일 대표 제목을 입력하세요.' })
   if (!project.sections.length) items.push({ id: 'sections', level: 'error', label: '블록 없음', detail: '한 개 이상의 콘텐츠 블록이 필요합니다.' })
-  const performance = project.campaign.performance
+  const defaultPerformance = { image_warning_bytes: 750000, image_max_bytes: 1500000, eager_image_budget_bytes: 3000000, image_exceptions: [] }
+  const performance = project.campaign?.performance || defaultPerformance
   project.sections.forEach(section => {
     if (!section.title.trim()) items.push({ id: `title-${section.id}`, level: 'warning', label: '블록 제목 없음', detail: '제목을 입력하면 디자이너가 의도를 더 쉽게 파악합니다.', sectionId: section.id })
     section.mediaIds.filter(Boolean).forEach(mediaId => {

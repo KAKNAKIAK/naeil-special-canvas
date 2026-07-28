@@ -225,11 +225,20 @@ ipcMain.handle('naeil-special:download-image', async (_event, rawUrl) => {
   } catch {
     throw new Error('http 또는 https 이미지 URL만 받을 수 있습니다.')
   }
-  const response = await net.fetch(url.href, { headers: { 'User-Agent': app.userAgentFallback } })
-  if (!response.ok) throw new Error(`HTTP ${response.status}`)
-  const bytes = await response.arrayBuffer()
-  if (bytes.byteLength > 30 * 1024 * 1024) throw new Error('이미지 파일이 30MB를 초과합니다.')
-  return { bytes, contentType: response.headers.get('content-type') || 'application/octet-stream' }
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 15_000)
+  try {
+    const response = await net.fetch(url.href, { headers: { 'User-Agent': app.userAgentFallback }, signal: controller.signal })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const bytes = await response.arrayBuffer()
+    if (bytes.byteLength > 30 * 1024 * 1024) throw new Error('이미지 파일이 30MB를 초과합니다.')
+    return { bytes, contentType: response.headers.get('content-type') || 'application/octet-stream' }
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error('이미지 다운로드 시간이 초과되었습니다. (15초)')
+    throw error
+  } finally {
+    clearTimeout(timeout)
+  }
 })
 
 ipcMain.handle('naeil-special:lookup-getty-content', async (_event, rawContentId) => {

@@ -195,7 +195,16 @@ export function normalizeProject(project: Project): Project {
       : section.extensions
     return { ...section, type, eyebrow, title, body, items, mediaIds, menuItemReversed, timelineDayStarts, timelineHeroVisible, listStyle: section.listStyle || (type === 'offer' ? 'offer' : 'list'), background: 'white', mediaLayout: section.mediaLayout || 'auto', contentLayout, layoutBoxes: normalizeLayoutBoxes({ contentLayout, mediaIds, layoutBoxes: section.layoutBoxes }), tableHeaders: type === 'table' ? Array.from({ length: columnCount }, (_, index) => section.tableHeaders?.[index] || (index === 0 ? '구분' : index === 1 ? '내용' : '비고')) : section.tableHeaders || [], tableRows: type === 'table' ? (section.tableRows || []).map(row => Array.from({ length: columnCount }, (_, index) => row[index] || '')) : section.tableRows || [], iconCards: type === 'icon-card' ? iconCards : section.iconCards || [], extensions }
   })
-  return { ...current, id, name, campaign: current.campaign || createCampaignData(id, name), sections, contentGroups: normalizeContentGroups(current.contentGroups, sections), assets: current.assets || [] }
+  const defaultCampaign = createCampaignData(id, name)
+  const rawCampaign = current.campaign || defaultCampaign
+  const campaign = {
+    ...defaultCampaign,
+    ...rawCampaign,
+    metadata: { ...defaultCampaign.metadata, ...(rawCampaign.metadata || {}) },
+    tracking: { ...defaultCampaign.tracking, ...(rawCampaign.tracking || {}) },
+    performance: { ...defaultCampaign.performance, ...(rawCampaign.performance || {}) },
+  }
+  return { ...current, id, name, campaign, sections, contentGroups: normalizeContentGroups(current.contentGroups, sections), assets: current.assets || [] }
 }
 
 export function isLegacyBaliSeed(project: Project): boolean {
