@@ -14,11 +14,11 @@ function escapeHtml(value: string) {
 function normalizeLineBreakMarkup(value: string) {
   return value
     .replace(/\r\n?/g, '\n')
-    // Browsers create div/p wrappers when Enter is pressed in contentEditable.
-    // Keep the visual paragraph break while discarding unsupported block markup.
-    .replace(/<(div|p|li|blockquote|h[1-6])\b[^>]*>/gi, '')
-    .replace(/<\/(div|p|li|blockquote|h[1-6])>/gi, '<br>')
-    .replace(/(?:<br\s*\/?>(?:\s|&nbsp;)*)+$/i, '')
+    .replace(/<(div|p|li|blockquote|h[1-6])\b[^>]*>(?:\s|&nbsp;|<br\s*\/?>)*<\/\1>/gi, '<br>')
+    .replace(/<(div|p|li|blockquote|h[1-6])\b[^>]*>/gi, '<br>')
+    .replace(/<\/(div|p|li|blockquote|h[1-6])>/gi, '')
+    .replace(/^(?:<br\s*\/?>)+/i, '')
+    .replace(/(?:<br\s*\/?>)+(?:\s|&nbsp;)*$/i, '')
 }
 
 function fontSize(size: string | null) {
