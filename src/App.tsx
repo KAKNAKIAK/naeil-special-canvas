@@ -962,7 +962,14 @@ function InlineText({ tag = 'span', value, className = '', multiline = false, re
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
   const inputRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
-  useEffect(() => { if (!editing) setDraft(value) }, [value, editing])
+  const prevValueRef = useRef(value)
+  useEffect(() => {
+    if (prevValueRef.current !== value) {
+      prevValueRef.current = value
+      setEditing(false)
+      setDraft(value)
+    }
+  }, [value])
   useEffect(() => { if (editing) inputRef.current?.focus() }, [editing])
   const start = (event: React.MouseEvent) => { if (readOnly) return; event.preventDefault(); event.stopPropagation(); onEditStart?.(); setDraft(value); setEditing(true) }
   const commitValue = () => { setEditing(false); if (draft !== value) onChange(draft) }
@@ -984,6 +991,13 @@ function RichText({ tag = 'span', value, className = '', readOnly = false, onEdi
   const [editing, setEditing] = useState(false)
   const ref = useRef<HTMLElement>(null)
   const safeValue = sanitizeRichText(value)
+  const prevValueRef = useRef(safeValue)
+  useEffect(() => {
+    if (prevValueRef.current !== safeValue) {
+      prevValueRef.current = safeValue
+      setEditing(false)
+    }
+  }, [safeValue])
   useEffect(() => { if (editing && ref.current) { ref.current.focus(); const selection = window.getSelection(); const range = document.createRange(); range.selectNodeContents(ref.current); range.collapse(false); selection?.removeAllRanges(); selection?.addRange(range) } }, [editing])
   const commitValue = () => { const next = sanitizeRichText(ref.current?.innerHTML || ''); setEditing(false); if (next !== safeValue) onChange(next) }
   const Component = tag as React.ElementType

@@ -1,65 +1,65 @@
 {
-    "name": "naeil-special-canvas-desktop",
-    "version": "1.0.30",
-    "description": "내일스패셜 기획안 캔버스 데스크톱 앱",
-    "main": "main.cjs",
-    "private": true,
-    "author": "Naeil Tour",
-    "license": "UNLICENSED",
-    "dependencies": {
-        "electron-updater": "6.6.2"
+  "name": "naeil-special-canvas-desktop",
+  "version": "1.0.31",
+  "description": "내일스패셜 기획안 캔버스 데스크톱 앱",
+  "main": "main.cjs",
+  "private": true,
+  "author": "Naeil Tour",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "electron-updater": "6.6.2"
+  },
+  "devDependencies": {
+    "electron": "43.1.1",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "kr.co.naeiltour.specialcanvas",
+    "productName": "내일스패셜 메이킹 스튜디오",
+    "asar": true,
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "getty-lookup.cjs",
+      "dist/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "build-assets/naeil-special-canvas-writer",
+        "to": "skills/naeil-special-canvas-writer",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "directories": {
+      "output": "release"
     },
-    "devDependencies": {
-        "electron": "43.1.1",
-        "electron-builder": "26.15.3"
-    },
-    "build": {
-        "appId": "kr.co.naeiltour.specialcanvas",
-        "productName": "내일스패셜 메이킹 스튜디오",
-        "asar": true,
-        "files": [
-            "main.cjs",
-            "preload.cjs",
-            "getty-lookup.cjs",
-            "dist/**/*"
-        ],
-        "extraResources": [
-            {
-                "from": "build-assets/naeil-special-canvas-writer",
-                "to": "skills/naeil-special-canvas-writer",
-                "filter": [
-                    "**/*"
-                ]
-            }
-        ],
-        "directories": {
-            "output": "release"
-        },
-        "publish": [
-            {
-                "provider": "github",
-                "owner": "KAKNAKIAK",
-                "repo": "naeil-special-canvas",
-                "releaseType": "release"
-            }
-        ],
-        "win": {
-            "target": [
-                {
-                    "target": "nsis",
-                    "arch": [
-                        "x64"
-                    ]
-                }
-            ]
-        },
-        "nsis": {
-            "artifactName": "naeil-special-canvas-Setup-${version}.${ext}",
-            "oneClick": false,
-            "allowToChangeInstallationDirectory": true,
-            "createDesktopShortcut": true,
-            "createStartMenuShortcut": true,
-            "shortcutName": "내일스패셜 메이킹 스튜디오"
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "KAKNAKIAK",
+        "repo": "naeil-special-canvas",
+        "releaseType": "release"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
         }
+      ]
+    },
+    "nsis": {
+      "artifactName": "naeil-special-canvas-Setup-${version}.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "내일스패셜 메이킹 스튜디오"
     }
+  }
 }
