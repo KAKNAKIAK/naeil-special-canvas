@@ -7,7 +7,7 @@ import { CURRENT_CATALOG_VERSION, CURRENT_SCHEMA_VERSION, isDirectProjectPayload
 import { buildSplitPlan } from './image-split'
 import { createCustomLayout, layoutPresetsFor, normalizeCustomLayout, patchLayoutItem, swapCustomLayoutPlacements } from './image-layout'
 import { isRichTextEmpty, richTextToPlainText, sanitizeRichText } from './rich-text'
-import { moveSectionUnit, normalizeContentGroups, removeSectionsFromGroups } from './content-groups'
+import { moveSectionUnit, normalizeContentGroups, removeSectionsFromGroups, reorderSectionUnit } from './content-groups'
 import { joinPair, joinTimeline, splitPair, splitTimeline } from './preset-item-format'
 
 describe('delivery QA', () => {
@@ -52,6 +52,21 @@ describe('delivery QA', () => {
   it('keeps the selected text and image placement in the project and exports', () => { const project = createSeedProject(); const section = makeSection('text'); section.contentLayout = 'media-left'; project.sections = [section]; expect(normalizeProject(project).sections[0].contentLayout).toBe('media-left'); expect(JSON.parse(manifestJson(project)).sections[0].content_layout).toBe('media-left'); expect(JSON.parse(canvasDocumentJson(project)).blocks[0].bindings.content_layout).toBe('media-left'); expect(standaloneHtml(project)).toContain('content-layout-media-left') })
   it('creates editable grid boxes for legacy sections and preserves added boxes', () => { const section = makeSection('image'); section.layoutBoxes = []; const migrated = normalizeProject({ ...createSeedProject(), sections: [section] }).sections[0]; expect(normalizeLayoutBoxes(migrated).map(box => box.id)).toEqual(['content', 'media']); migrated.layoutBoxes = [...normalizeLayoutBoxes(migrated), { id: 'extra', kind: 'text', column: 2, row: 12, columnSpan: 5, rowSpan: 3, zIndex: 4, text: '추가 문구' }]; const boxes = normalizeLayoutBoxes(migrated); expect(boxes.find(box => box.id === 'extra')).toMatchObject({ kind: 'text', column: 2, text: '추가 문구' }); expect(JSON.parse(manifestJson({ ...createSeedProject(), sections: [migrated] })).sections[0].layout_boxes).toHaveLength(3) })
   it('does not restore a deleted base image card after layout normalization or reload', () => { const section = makeSection('image'); section.removedLayoutBoxIds = ['media']; expect(normalizeLayoutBoxes(section).map(box => box.id)).toEqual(['content']); const reloaded = normalizeProject({ ...createSeedProject(), sections: [section] }).sections[0]; expect(normalizeLayoutBoxes(reloaded).map(box => box.id)).toEqual(['content']); expect(reloaded.removedLayoutBoxIds).toEqual(['media']) })
+  it('reorders standalone layers, content groups, and members within a group via drag-and-drop', () => {
+    const a = makeSection('text'), b = makeSection('image'), c = makeSection('list'), d = makeSection('table')
+    const sections = [a, b, c, d]
+    const groups = [{ id: 'g1', name: '묶음', sectionIds: [b.id, c.id], collapsed: false }]
+    const afterLast = reorderSectionUnit(sections, groups, a.id, d.id, 'after')
+    expect(afterLast.map(s => s.id)).toEqual([b.id, c.id, d.id, a.id])
+    expect(normalizeContentGroups(groups, afterLast)[0].sectionIds).toEqual([b.id, c.id])
+    const dropOnGroup = reorderSectionUnit(sections, groups, d.id, b.id, 'before')
+    expect(dropOnGroup.map(s => s.id)).toEqual([a.id, d.id, b.id, c.id])
+    const insideGroup = reorderSectionUnit(sections, groups, c.id, b.id, 'before')
+    expect(insideGroup.map(s => s.id)).toEqual([a.id, c.id, b.id, d.id])
+    expect(normalizeContentGroups(groups, insideGroup)[0].sectionIds).toEqual([c.id, b.id])
+    const moveGroupDown = reorderSectionUnit(sections, groups, b.id, d.id, 'after', true)
+    expect(moveGroupDown.map(s => s.id)).toEqual([a.id, d.id, b.id, c.id])
+  })
   it('exports stack, grid-3, and mosaic image layouts and sanitizes extra text cards', () => {
     const project = createSeedProject()
     const ids = ['a', 'b', 'c']

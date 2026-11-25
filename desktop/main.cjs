@@ -137,6 +137,16 @@ function createWindow() {
     if (url !== window.webContents.getURL()) event.preventDefault()
   })
 
+  window.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown' || input.isAutoRepeat) return
+    if ((input.control || input.meta) && !input.alt && !input.shift && (input.code === 'KeyQ' || String(input.key || '').toLowerCase() === 'q')) {
+      event.preventDefault()
+      setImmediate(() => {
+        if (!window.isDestroyed()) window.close()
+      })
+    }
+  })
+
   let rendererRecoveryOpen = false
   const recoverRenderer = detail => {
     if (rendererRecoveryOpen || window.isDestroyed() || isInstallingUpdate) return

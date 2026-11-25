@@ -1,18 +1,19 @@
 ﻿import { useEffect, useRef, useState } from 'react'
-import { Archive, ArrowLeftRight, Baby, Bath, Blocks, CalendarDays, CarFront, Check, ChevronDown, ChevronUp, CircleHelp, Compass, Copy, Download, Dumbbell, ExternalLink, Eye, FileJson, FileText, Flag, Flower2, FolderOpen, GripVertical, HandHeart, Hotel, Image as ImageIcon, Layers, Link2, LogOut, MapPinned, Maximize2, Menu, Minus, MonitorUp, PanelsTopLeft, Plane, Plus, Redo2, Save, Search, Settings2, ShoppingBag, Sparkles, Star, Table2, Trash2, Undo2, Upload, UsersRound, Utensils, Waves, X } from 'lucide-react'
+import { Archive, ArrowLeftRight, Blocks, CalendarDays, Check, ChevronDown, ChevronUp, CircleHelp, Download, ExternalLink, Eye, FileJson, FileText, GripVertical, Image as ImageIcon, Layers, Link2, LogOut, MapPinned, Maximize2, Menu, Minus, PanelsTopLeft, Plus, Redo2, Save, Search, Settings2, Sparkles, Table2, Trash2, Undo2, Upload, X } from 'lucide-react'
 import YAML from 'yaml'
 import { canvasLinkedAssetIds, createSampleProject, createSeedProject, createTemplateProject, GROUPS, isLegacyBaliSeed, makeSection, normalizeLayoutBoxes, normalizeProject, normalizeReferenceMediaSlots, normalizeSectionType, referenceMediaSlot, SECTION_LABELS, TEMPLATE_PRESETS, timelineDayStartsAfterItemRemoval, type TemplatePresetId } from './catalog'
 import { APP_VERSION } from './app-version'
-import { moveSectionUnit, normalizeContentGroups, removeSectionsFromGroups } from './content-groups'
+import { moveSectionUnit, normalizeContentGroups, removeSectionsFromGroups, reorderSectionUnit } from './content-groups'
 import { exportZip, parseShareSnapshot, projectLoadJson, standaloneHtml, downloadText, type ZipExportProgress } from './exporters'
-import { createCustomLayout, FOCUS_OPTIONS, layoutPresetsFor, normalizeCustomLayout, patchLayoutItem, swapCustomLayoutPlacements, type ImageOrientation } from './image-layout'
+import { createCustomLayout, normalizeCustomLayout, patchLayoutItem, swapCustomLayoutPlacements } from './image-layout'
 import { loadWorkspaceWithTimeout, saveMigrationBackup, saveWorkspace } from './storage'
 import { isDirectProjectPayload, migrateProject } from './migrations'
-import { isRichTextEmpty, RICH_TEXT_COLORS, RICH_TEXT_SIZES, richTextToPlainText, sanitizeRichText } from './rich-text'
-import { joinPair, joinTimeline, splitPair, splitTimeline } from './preset-item-format'
-import { approveBrief, buildDraftBrief, buildProjectFromApprovedBrief, createBriefWorkspace } from './brief'
+import { richTextToPlainText } from './rich-text'
 import { collectAssetSources, historySnapshot, restoreHistorySnapshot } from './project-history'
-import type { BlockBox, BriefWorkspace, CanvasBrief, CanvasBriefBlock, ContentGroup, GeneratableSectionType, IconCardItem, ImageFocus, MediaAsset, MediaLayoutItem, Project, Section, SectionType } from './types'
+import { SectionView } from './components/CanvasSection'
+import { Inspector } from './components/SectionInspector'
+import { ITEM_PRESET_TYPES, REFERENCE_LAYOUT_TYPES } from './components/editor-shared'
+import type { BlockBox, ContentGroup, IconCardItem, MediaAsset, MediaLayoutItem, Project, Section, SectionType } from './types'
 
 type LeftTab = 'blocks' | 'images' | 'layers'
 type ImageTarget = { sectionId?: string; boxId?: string; specialMediaIndex?: number; replaceAssetId?: string } | null
@@ -23,15 +24,6 @@ const ONBOARDING_STORAGE_KEY = 'naeil-special-canvas:onboarding-v1'
 // The previous visual 120% size is the new user-facing 100% baseline.
 const ZOOM_REFERENCE = 100 / 1.2
 const BRAND_LOGO = new URL('./assets/naeil-tour-ci.png', import.meta.url).href
-const SPECIAL_LAYOUT_TYPES = new Set<SectionType>(['caption-grid', 'menu-zigzag', 'timeline', 'hero-cover', 'route-bar', 'option-grid', 'vs-compare', 'service-bar'])
-const ITEM_PRESET_TYPES = new Set<SectionType>(['list', 'offer', 'table', 'icon-card', 'caption-grid', 'menu-zigzag', 'timeline', 'hero-cover', 'route-bar', 'option-grid', 'vs-compare', 'service-bar'])
-const REFERENCE_LAYOUT_TYPES = new Set<SectionType>(['caption-grid', 'menu-zigzag', 'timeline', 'hero-cover', 'route-bar', 'option-grid', 'vs-compare'])
-const BACKGROUND_OPTIONS: Array<{ value: Section['background']; label: string }> = [
-  { value: 'white', label: '화이트' },
-  { value: 'sand', label: '샌드' },
-  { value: 'mist', label: '민트' },
-  { value: 'teal', label: '다크 틸' },
-]
 const uniqueIds = (ids: string[]) => [...new Set(ids.filter(Boolean))]
 
 function mediaIdsFromBoxes(boxes: BlockBox[]) {
@@ -50,36 +42,12 @@ function presetItemCount(section?: Section) {
 const deepCopy = <T,>(value: T): T => JSON.parse(JSON.stringify(value))
 const nextDayLabel = (rows: string[][]) => { const last = rows[rows.length - 1]?.[0] || ''; const day = Number(last.match(/\d+/)?.[0]); return `DAY ${Number.isFinite(day) ? day + 1 : rows.length + 1}` }
 const safeName = (name: string) => name.replace(/[\\/:*?"<>|]/g, '-').trim() || 'naeil-special'
-const ICON_CARD_OPTIONS = [
-  { value: 'calendar', label: '일정', glyph: '◷', Icon: CalendarDays }, { value: 'car', label: '이동', glyph: '◌', Icon: CarFront }, { value: 'hotel', label: '호텔', glyph: '⌂', Icon: Hotel }, { value: 'plane', label: '항공', glyph: '✈', Icon: Plane }, { value: 'map', label: '지도', glyph: '⌖', Icon: MapPinned }, { value: 'guide', label: '가이드', glyph: '★', Icon: UsersRound }, { value: 'compass', label: '체험', glyph: '✦', Icon: Compass }, { value: 'star', label: '추천', glyph: '✧', Icon: Star }, { value: 'sparkles', label: '특전', glyph: '✦', Icon: Sparkles },
-  { value: 'food', label: '음식', glyph: '●', Icon: Utensils }, { value: 'massage', label: '마사지', glyph: '✋', Icon: HandHeart }, { value: 'spa', label: '스파', glyph: '✿', Icon: Flower2 }, { value: 'pool', label: '수영장', glyph: '≈', Icon: Waves }, { value: 'fitness', label: '피트니스', glyph: '◆', Icon: Dumbbell }, { value: 'shopping', label: '쇼핑', glyph: '□', Icon: ShoppingBag }, { value: 'family', label: '가족·키즈', glyph: '●', Icon: Baby }, { value: 'golf', label: '골프', glyph: '⚑', Icon: Flag }, { value: 'bath', label: '온천·목욕', glyph: '♨', Icon: Bath },
-] as const
-const iconCardOption = (icon: string) => ICON_CARD_OPTIONS.find(option => option.value === icon) || ICON_CARD_OPTIONS[8]
-const BRIEF_BLOCK_TYPES: GeneratableSectionType[] = ['text', 'image', 'list', 'icon-card', 'table', 'timeline', 'menu-zigzag', 'hero-cover', 'route-bar', 'option-grid', 'vs-compare', 'service-bar']
-type InlineTag = 'span' | 'p' | 'h2' | 'h3' | 'div' | 'strong' | 'b' | 'figcaption'
-const BLOCK_EDITOR_COPY: Record<SectionType, { lead: string; eyebrow: string; title: string; body: string; eyebrowPlaceholder: string; titlePlaceholder: string; bodyPlaceholder: string }> = {
-  text: { lead: '한 가지 메시지와 설명을 이어 쓰는 블록입니다.', eyebrow: '상단 분류', title: '핵심 메시지', body: '본문', eyebrowPlaceholder: '예: Category Label', titlePlaceholder: '고객에게 먼저 보일 핵심 문장', bodyPlaceholder: '메시지를 뒷받침하는 설명을 입력하세요.' },
-  image: { lead: '이미지는 왼쪽 라이브러리에서 연결하고, 이곳에는 이미지 맥락만 작성합니다.', eyebrow: '이미지 분류', title: '이미지 섹션 제목', body: '이미지 소개·캡션', eyebrowPlaceholder: '예: HOTEL VIEW', titlePlaceholder: '예: 객실에서 만나는 바다 전망', bodyPlaceholder: '사진에서 보여 주고 싶은 장면과 특징을 입력하세요.' },
-  list: { lead: '핵심 포인트를 짧게 정리하는 블록입니다.', eyebrow: '포인트 분류', title: '목록 제목', body: '목록 도입 문장', eyebrowPlaceholder: '예: WHY THIS TRIP', titlePlaceholder: '예: 여행을 더 편하게 만드는 세 가지', bodyPlaceholder: '목록을 읽기 전에 필요한 짧은 안내를 입력하세요.' },
-  table: { lead: '일정, 조건, 비교처럼 행과 열로 봐야 하는 정보에 씁니다.', eyebrow: '카테고리 라벨', title: '제목', body: '본문', eyebrowPlaceholder: '예: TRIP SCHEDULE', titlePlaceholder: '예: 여행 일정 한눈에 보기', bodyPlaceholder: '표를 읽는 방법이나 기준을 짧게 입력하세요.' },
-  'icon-card': { lead: '아이콘 카드로 상품의 선택 이유나 서비스 장점을 시각적으로 보여 줍니다.', eyebrow: '카테고리 라벨', title: '제목', body: '본문', eyebrowPlaceholder: '예: OUR PROMISE', titlePlaceholder: '예: 우리끼리만 떠나는 패키지', bodyPlaceholder: '카드 전체를 설명하는 한 문장을 입력하세요.' },
-  offer: { lead: '특전, 포함 사항, 적용 조건을 한데 모아 강조하는 블록입니다.', eyebrow: '특전 분류', title: '특전 제목', body: '적용 안내', eyebrowPlaceholder: '예: NAEIL BENEFIT', titlePlaceholder: '예: 내일투어 단독 특전', bodyPlaceholder: '기간, 적용 대상, 유의사항을 짧게 안내하세요.' },
-  'caption-grid': { lead: '사진 4장과 짧은 캡션을 2단 그리드로 보여 주는 포인트 소개 블록입니다.', eyebrow: '상단 아이콘', title: '그리드 제목', body: '보조 설명', eyebrowPlaceholder: '예: ☂', titlePlaceholder: '예: 리조트 집중 포인트', bodyPlaceholder: '필요할 때만 짧은 설명을 입력하세요.' },
-  'menu-zigzag': { lead: '이미지와 설명을 좌우로 보여 주는 블록입니다. 항목마다 이미지와 텍스트 위치를 바꿀 수 있습니다.', eyebrow: 'Category Label', title: '제목', body: '본문', eyebrowPlaceholder: '예: 도쿄', titlePlaceholder: '예: 도쿄 미식 추천 메뉴', bodyPlaceholder: '필요할 때만 짧은 설명을 입력하세요.' },
-  timeline: { lead: '대표 이미지와 시간축을 함께 보여 주는 장거리·테마 일정 블록입니다.', eyebrow: 'Category Label', title: '제목', body: '본문', eyebrowPlaceholder: '예: CHOCOLATE TRAIN', titlePlaceholder: '예: 스위스 패밀리 금까기', bodyPlaceholder: '일정 전체를 소개하는 핵심 내용을 입력하세요.' },
-  'hero-cover': { lead: '배경 이미지 위에 대제목·부제·핵심 뱃지를 올리는 커버 히어로 블록입니다.', eyebrow: '상단 라벨', title: '대표 제목', body: '소개 문구', eyebrowPlaceholder: '예: HONEYMOON SPECIAL', titlePlaceholder: '예: 발리 프라이빗 허니문', bodyPlaceholder: '대표 소개 문장을 입력하세요.' },
-  'route-bar': { lead: '방문 도시를 가로 연결선으로 보여 주고 선택적으로 지도 이미지를 붙입니다.', eyebrow: '동선 라벨', title: '동선 제목', body: '동선 안내', eyebrowPlaceholder: '예: GOLDEN ROUTE', titlePlaceholder: '예: 한눈에 보는 황금 동선', bodyPlaceholder: '이동 방식과 동선 특징을 입력하세요.' },
-  'option-grid': { lead: '원형 썸네일 그리드로 선택형 프로그램(택1)을 한눈에 보여 줍니다.', eyebrow: '혜택 라벨', title: '선택 혜택 제목', body: '선택 조건', eyebrowPlaceholder: '예: BENEFIT 01', titlePlaceholder: '예: 원데이 프로그램 택 1', bodyPlaceholder: '선택 가능 개수와 조건을 입력하세요.' },
-  'vs-compare': { lead: '두 가지 여행 스타일·패스·시즌을 좌우 카드와 VS 배지로 비교합니다.', eyebrow: '비교 라벨', title: '비교 제목', body: '비교 요약', eyebrowPlaceholder: '예: COMPARE', titlePlaceholder: '예: 실버패스 vs 골드패스', bodyPlaceholder: '비교 포인트를 짧게 입력하세요.' },
-  'service-bar': { lead: '번호 배지 + 좌측 설명 + 우측 핵심 키워드로 공통 서비스를 정리합니다.', eyebrow: '서비스 라벨', title: '서비스 제목', body: '안내 문구', eyebrowPlaceholder: '예: SPECIAL SERVICE', titlePlaceholder: '예: 내일투어 스페셜 서비스', bodyPlaceholder: '공통 제공 혜택을 짧게 안내하세요.' },
-}
 
 export default function App() {
   const [project, setProject] = useState<Project>(createSeedProject)
   const [ready, setReady] = useState(false)
   const [projects, setProjects] = useState<Project[]>([])
   const [projectFiles, setProjectFiles] = useState<Record<string, string>>({})
-  const [projectBoardOpen, setProjectBoardOpen] = useState(false)
   const [blockPickerOpen, setBlockPickerOpen] = useState(false)
   const [readOnly, setReadOnly] = useState(false)
   const [selectedId, setSelectedId] = useState<string>('')
@@ -99,7 +67,6 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState(false)
   const [onboardingOpen, setOnboardingOpen] = useState(false)
   const [onboardingStep, setOnboardingStep] = useState(0)
-  const [briefStudioOpen, setBriefStudioOpen] = useState(false)
   const [mobilePanel, setMobilePanel] = useState<'left' | 'right' | null>(null)
   const [imageTarget, setImageTarget] = useState<ImageTarget>(null)
   const [toast, setToast] = useState('')
@@ -173,6 +140,17 @@ export default function App() {
         .then(saved => desktop.completeSaveBeforeClose(saved))
         .catch(() => desktop.completeSaveBeforeClose(false))
     })
+  }, [])
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat || event.altKey || event.shiftKey) return
+      if ((event.ctrlKey || event.metaKey) && (event.code === 'KeyQ' || event.key.toLowerCase() === 'q')) {
+        event.preventDefault()
+        requestAppClose()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(''), 2200); return () => clearTimeout(timer) }, [toast])
   useEffect(() => {
@@ -257,53 +235,6 @@ export default function App() {
     if (desktop) desktop.requestClose()
     else window.close()
   }
-  const briefWorkspace = project.briefWorkspace || createBriefWorkspace()
-  function updateBriefWorkspace(next: BriefWorkspace, resetApproval = true) {
-    commit(draft => {
-      const current = draft.briefWorkspace?.brief
-      draft.briefWorkspace = { ...next, brief: resetApproval && current ? { ...current, status: 'draft', approvedAt: '', updatedAt: new Date().toISOString() } : next.brief }
-    })
-  }
-  function updateCurrentBrief(next: CanvasBrief) {
-    commit(draft => { draft.briefWorkspace = { ...(draft.briefWorkspace || createBriefWorkspace()), brief: { ...next, status: 'draft', approvedAt: '', updatedAt: new Date().toISOString() } } })
-  }
-  function updateBriefProduct(patch: { name?: string; category?: Project['category']; layout?: Project['layout']; destination?: string; subtitle?: string }) {
-    commit(draft => {
-      if (patch.name !== undefined) { draft.name = patch.name; draft.campaign.product_name = patch.name; draft.campaign.metadata.title = patch.name; draft.campaign.metadata.h1 = patch.name; draft.campaign.metadata.og_title = patch.name }
-      if (patch.category !== undefined) draft.category = patch.category
-      if (patch.layout !== undefined) draft.layout = patch.layout
-      if (patch.destination !== undefined) draft.page.destination = patch.destination
-      if (patch.subtitle !== undefined) draft.page.subtitle = patch.subtitle
-      if (draft.briefWorkspace?.brief) draft.briefWorkspace.brief = { ...draft.briefWorkspace.brief, status: 'draft', approvedAt: '', updatedAt: new Date().toISOString() }
-    })
-  }
-  function generateBriefDraft() {
-    const next = buildDraftBrief(project, briefWorkspace)
-    commit(draft => { draft.briefWorkspace = { ...briefWorkspace, brief: next } })
-    setToast('입력 자료를 사실·확인 필요·블록 초안으로 정리했습니다.')
-  }
-  function approveCurrentBrief() {
-    if (!briefWorkspace.brief) { setToast('먼저 초안을 생성하세요.'); return }
-    try {
-      const approved = approveBrief(briefWorkspace.brief)
-      commit(draft => { draft.briefWorkspace = { ...briefWorkspace, brief: approved } })
-      setToast('brief를 승인했습니다. 이제 캔버스에 반영할 수 있습니다.')
-    } catch (error) { setToast(error instanceof Error ? error.message : 'brief를 승인하지 못했습니다.') }
-  }
-  function applyCurrentBrief() {
-    if (!briefWorkspace.brief) return
-    try {
-      const next = buildProjectFromApprovedBrief(project, briefWorkspace.brief)
-      setHistory(history => [...history.slice(-39), historySnapshot(project)])
-      setFuture([])
-      setProject(next)
-      setSelectedId(next.sections[0]?.id || '')
-      setSelectedBoxId('')
-      setSelectedItemIndex(next.sections[0]?.items.length ? 0 : null)
-      setBriefStudioOpen(false)
-      setToast('승인 brief를 캔버스 초안으로 반영했습니다.')
-    } catch (error) { setToast(error instanceof Error ? error.message : '캔버스 반영에 실패했습니다.') }
-  }
   function imageTargetIsCurrent(target: ImageTarget) {
     if (!target?.sectionId) return true
     const current = imageSelectionRef.current
@@ -375,7 +306,6 @@ export default function App() {
     setSelectedBoxId('')
     setToast('카드를 삭제했습니다.')
   }
-  function changeBoxLayer(sectionId: string, boxId: string, amount: number) { commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section) return; const boxes = normalizeLayoutBoxes(section); const target = boxes.find(box => box.id === boxId); if (!target) return; target.zIndex = Math.max(1, Math.min(99, target.zIndex + amount)); section.layoutBoxes = boxes }) }
   function moveImageFlowBox(sectionId: string, boxId: string, direction: -1 | 1) { commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section || (section.type !== 'image' && section.type !== 'text')) return; const boxes = normalizeLayoutBoxes(section).filter(box => section.type === 'image' || box.kind === 'content' || box.kind === 'text').slice().sort((a, b) => a.row - b.row || a.column - b.column); const index = boxes.findIndex(box => box.id === boxId); const target = index + direction; if (index < 0 || target < 0 || target >= boxes.length) return; [boxes[index], boxes[target]] = [boxes[target], boxes[index]]; let row = 1; section.layoutBoxes = boxes.map((box, order) => { const rowSpan = box.kind === 'content' || box.kind === 'text' ? 4 : 6; const next = { ...box, column: 1, row, columnSpan: 12, rowSpan, zIndex: order + 1 }; row += rowSpan + 1; return next }) }); setToast(direction < 0 ? '카드를 위로 옮겼습니다.' : '카드를 아래로 옮겼습니다.') }
   const isItemPreset = (type: SectionType) => ITEM_PRESET_TYPES.has(type)
   const newPresetItem = (type: SectionType) => type === 'offer' ? '새 특전 또는 조건' : type === 'caption-grid' ? '제목 | 설명' : type === 'menu-zigzag' ? '제목 | 본문' : type === 'timeline' ? '00:00 | 새 일정 | 설명을 입력하세요.' : type === 'hero-cover' ? '새 강조 뱃지' : type === 'route-bar' ? '새 경유지' : type === 'option-grid' ? '새 선택 옵션' : type === 'vs-compare' ? '키워드 | 옵션 제목 | 옵션 설명을 입력하세요.' : type === 'service-bar' ? '서비스 설명을 입력하세요. | 핵심 키워드' : '새 핵심 내용'
@@ -505,6 +435,12 @@ export default function App() {
     })
   }
   function moveSection(id: string, direction: -1 | 1) { commit(draft => { draft.sections = moveSectionUnit(draft.sections, draft.contentGroups, id, direction); draft.contentGroups = normalizeContentGroups(draft.contentGroups, draft.sections) }) }
+  function reorderSection(sourceId: string, targetId: string, placement: 'before' | 'after', forceGroupUnit = false) {
+    commit(draft => {
+      draft.sections = reorderSectionUnit(draft.sections, draft.contentGroups, sourceId, targetId, placement, forceGroupUnit)
+      draft.contentGroups = normalizeContentGroups(draft.contentGroups, draft.sections)
+    })
+  }
   function duplicateSection(id: string) { let newId = ''; commit(draft => { const index = draft.sections.findIndex(s => s.id === id); if (index < 0) return; const copy = deepCopy(draft.sections[index]); copy.id = crypto.randomUUID(); copy.title += ' 복사본'; newId = copy.id; draft.sections.splice(index + 1, 0, copy); draft.contentGroups = normalizeContentGroups(draft.contentGroups, draft.sections) }); setSelectedId(newId) }
   function deleteSection(id: string) { commit(draft => { draft.sections = draft.sections.filter(s => s.id !== id); draft.contentGroups = removeSectionsFromGroups(draft.contentGroups, [id], draft.sections) }); focusSection(project.sections.find(s => s.id !== id)) }
   function requestImageUpload(target: ImageTarget = null) { if (selected && REFERENCE_LAYOUT_TYPES.has(selected.type) && selectedSpecialMediaIndex === null) { setImageTarget(null); imageRef.current?.click(); return } setImageTarget(target); imageRef.current?.click() }
@@ -675,7 +611,7 @@ export default function App() {
       }
     })
   }
-  function newProject() { const next = createSeedProject(); setProjects(current => [next, ...current]); setProject(next); setSelectedId(''); setSelectedBoxId(''); setSelectedItemIndex(null); setSelectedSpecialMediaIndex(null); setHistory([]); setFuture([]); setLeftTab('blocks'); setProjectBoardOpen(false); setToast('빈 캔버스를 만들었습니다.') }
+  function newProject() { const next = createSeedProject(); setProjects(current => [next, ...current]); setProject(next); setSelectedId(''); setSelectedBoxId(''); setSelectedItemIndex(null); setSelectedSpecialMediaIndex(null); setHistory([]); setFuture([]); setLeftTab('blocks'); setToast('빈 캔버스를 만들었습니다.') }
   function openNewBlankCanvas() { if (!window.confirm('새 빈 캔버스를 시작할까요?\n현재 작업은 이 PC에 자동 저장되어 프로젝트에서 다시 열 수 있습니다.')) return; newProject() }
   function startBlankCanvas() { setLeftTab('blocks'); setBlockPickerOpen(true) }
   function startSampleProject() { const next = createSampleProject(); setProjects(current => [next, ...current]); setProject(next); setSelectedId(next.sections[0]?.id || ''); setSelectedBoxId(''); setSelectedItemIndex(null); setHistory([]); setFuture([]); setLeftTab('blocks'); setToast('편집 가능한 샘플 기획안을 열었습니다.') }
@@ -683,9 +619,6 @@ export default function App() {
   function completeOnboarding(dontShowAgain = false) { if (dontShowAgain) localStorage.setItem(ONBOARDING_STORAGE_KEY, 'done'); setOnboardingOpen(false); setOnboardingStep(0); setLeftTab('blocks') }
   function changeOnboardingStep(step: number) { setOnboardingStep(step); if (step === 0) setLeftTab('blocks'); if (step === 2) setLeftTab('images'); if (step === 3) setLeftTab('layers') }
   function reopenOnboarding() { setHelpOpen(false); changeOnboardingStep(0); setOnboardingOpen(true) }
-  function openProject(next: Project) { setProject(normalizeProject(next)); setSelectedId(next.sections[0]?.id || ''); setHistory([]); setFuture([]); setProjectBoardOpen(false) }
-  function duplicateProject(source: Project) { const next = deepCopy(source); next.id = crypto.randomUUID(); next.name = `${source.name} 복사본`; next.updatedAt = new Date().toISOString(); next.campaign.campaign_id = next.id; next.campaign.product_name = next.name; next.campaign.tracking.promotion_id = next.id; setProjects(current => [next, ...current]); setProject(next); setSelectedId(next.sections[0]?.id || ''); setProjectBoardOpen(false); setToast('프로젝트를 복제했습니다.') }
-  function removeProject(id: string) { if (projects.length <= 1) { setToast('마지막 프로젝트는 삭제할 수 없습니다.'); return } if (!confirm('이 기획안을 삭제할까요? 내보낸 JSON 파일은 유지됩니다.')) return; const next = projects.filter(item => item.id !== id); const nextFiles = Object.fromEntries(Object.entries(projectFilesRef.current).filter(([projectId]) => projectId !== id)); projectFilesRef.current = nextFiles; setProjectFiles(nextFiles); setProjects(next); if (project.id === id) openProject(next[0]); saveWorkspace({ activeId: project.id === id ? next[0].id : project.id, projects: next, projectFiles: nextFiles }); }
   async function doExport(kind: string) {
     const name = safeName(project.name); setExportOpen(false)
     if (kind === 'html') downloadText(standaloneHtml(project), `${name}.html`, 'text/html;charset=utf-8')
@@ -754,7 +687,7 @@ export default function App() {
       <div className="library" data-guide={leftTab === 'blocks' ? 'block-library' : leftTab === 'images' ? 'image-panel' : undefined}>
         {leftTab === 'blocks' && <BlockLibrary onAdd={addSection}/>} 
         {leftTab === 'images' && <ImageLibraryWithCleanup assets={project.assets} linkedAssetIds={canvasLinkedAssetIds(project.sections)} selected={selected} selectedBox={selectedBox} selectedSpecialMediaIndex={selectedSpecialMediaIndex} onUpload={() => requestImageUpload(selected ? { sectionId: selected.id, boxId: selectedBox?.kind === 'media' || selectedBox?.kind === 'image' ? selectedBox.id : 'media', specialMediaIndex: REFERENCE_LAYOUT_TYPES.has(selected.type) ? selectedSpecialMediaIndex ?? undefined : undefined } : null)} onAddUrl={url => addImageUrl(url)} onAddGettyImage={addGettyImage} onConnect={connectAsset} onClearUnused={clearUnusedAssets}/>}
-        {leftTab === 'layers' && <LayerList sections={project.sections} groups={project.contentGroups || []} selectedId={selectedId} onSelect={focusLayerSection} onMove={moveSection} onCreateGroup={createContentGroup} onUpdateGroup={updateContentGroup} onMoveGroup={moveContentGroup} onUngroup={ungroupContent}/>} 
+        {leftTab === 'layers' && <LayerList sections={project.sections} groups={project.contentGroups || []} selectedId={selectedId} readOnly={readOnly} onSelect={focusLayerSection} onMove={moveSection} onReorder={reorderSection} onCreateGroup={createContentGroup} onUpdateGroup={updateContentGroup} onMoveGroup={moveContentGroup} onUngroup={ungroupContent}/>} 
       </div>
     </aside>
 
@@ -764,7 +697,7 @@ export default function App() {
         <div className="canvas-scale" style={{ width: `${CANVAS_WIDTH}px`, transform: `scale(${zoom / ZOOM_REFERENCE})`, marginBottom: `${(zoom / ZOOM_REFERENCE - 1) * 900}px` }}>
           <div ref={artboardRef} className="artboard viewport-720" data-testid="artboard" data-guide="canvas">
             <PageCover project={project} onStartBlank={startBlankCanvas} onStartSample={startSampleProject} onStartTemplate={startTemplateProject} onImport={() => importRef.current?.click()}/>
-            {project.sections.map((section, index) => <SectionView key={section.id} section={section} assets={project.assets} selected={section.id === selectedId} readOnly={readOnly} activeBoxId={section.id === selectedId ? selectedBoxId : ''} activeItemIndex={section.id === selectedId ? selectedItemIndex : null} activeSpecialMediaIndex={section.id === selectedId ? selectedSpecialMediaIndex : null} index={index} total={project.sections.length} onSelect={() => focusSection(section)} onSelectBox={boxId => selectSectionBox(section.id, boxId)} onSelectItem={itemIndex => selectSectionItem(section.id, itemIndex)} onSelectSpecialMedia={mediaIndex => selectSpecialMedia(section.id, mediaIndex)} onClearTimelineMedia={clearTimelineMedia} onSetTimelineHeroVisible={setTimelineHeroVisible} onDeleteTimelineDay={deleteTimelineDay} onSectionChange={patch => updateSectionById(section.id, patch)} onBoxChange={(boxId, patch) => updateLayoutBox(section.id, boxId, patch)} onUpdateItem={(itemIndex, value) => updatePresetItem(section.id, itemIndex, value)} onAddFlowBox={addLayoutBox} onMoveFlowBox={moveImageFlowBox} onDeleteFlowBox={deleteLayoutBox} onAddItem={addPresetItem} onAddTimelineDay={addTimelineDay} onInsertItem={insertPresetItem} onDuplicateItem={duplicatePresetItem} onMoveItem={movePresetItem} onReorderIconCard={reorderIconCard} onDeleteItem={deletePresetItem} onToggleMenuItemLayout={toggleMenuItemLayout} onMove={moveSection} onDuplicate={duplicateSection} onDelete={deleteSection} onSwapMedia={swapSectionMedia} onAddLibraryMedia={addLibraryMediaToBox}/>) }
+            {project.sections.map((section, index) => <SectionView key={section.id} section={section} assets={project.assets} selected={section.id === selectedId} readOnly={readOnly} activeBoxId={section.id === selectedId ? selectedBoxId : ''} activeItemIndex={section.id === selectedId ? selectedItemIndex : null} activeSpecialMediaIndex={section.id === selectedId ? selectedSpecialMediaIndex : null} index={index} total={project.sections.length} onSelect={() => focusSection(section)} onSelectBox={boxId => selectSectionBox(section.id, boxId)} onSelectItem={itemIndex => selectSectionItem(section.id, itemIndex)} onSelectSpecialMedia={mediaIndex => selectSpecialMedia(section.id, mediaIndex)} onClearTimelineMedia={clearTimelineMedia} onDeleteTimelineDay={deleteTimelineDay} onSectionChange={patch => updateSectionById(section.id, patch)} onBoxChange={(boxId, patch) => updateLayoutBox(section.id, boxId, patch)} onUpdateItem={(itemIndex, value) => updatePresetItem(section.id, itemIndex, value)} onAddFlowBox={addLayoutBox} onMoveFlowBox={moveImageFlowBox} onDeleteFlowBox={deleteLayoutBox} onAddItem={addPresetItem} onAddTimelineDay={addTimelineDay} onInsertItem={insertPresetItem} onDuplicateItem={duplicatePresetItem} onMoveItem={movePresetItem} onReorderIconCard={reorderIconCard} onDeleteItem={deletePresetItem} onToggleMenuItemLayout={toggleMenuItemLayout} onMove={moveSection} onDuplicate={duplicateSection} onDelete={deleteSection} onSwapMedia={swapSectionMedia} onAddLibraryMedia={addLibraryMediaToBox}/>) }
             <button className="add-end" data-guide="block-add" onClick={() => setBlockPickerOpen(true)}><Plus size={18}/> 다음 블록 추가</button>
           </div>
         </div>
@@ -774,7 +707,7 @@ export default function App() {
 
     <aside className={`right-panel ${mobilePanel === 'right' ? 'mobile-open' : ''}`}>
       <PanelClose onClick={() => setMobilePanel(null)}/>
-      <Inspector project={project} selected={selected} selectedBox={selectedBox} selectedItemIndex={selectedItemIndex} selectedSpecialMediaIndex={selectedSpecialMediaIndex} commit={commit} updateSection={updateSection} onAddBox={addLayoutBox} onDeleteBox={deleteLayoutBox} onChangeBox={updateLayoutBox} onChangeBoxLayer={changeBoxLayer} onMoveImageFlowBox={moveImageFlowBox} onUpdateItem={updatePresetItem} onDeleteItem={deletePresetItem} onLayoutChange={setSectionLayout} onLayoutItemChange={updateSectionLayoutItem} onLayoutPreset={applySectionLayoutPreset}/>
+      <Inspector project={project} selected={selected} selectedBox={selectedBox} selectedItemIndex={selectedItemIndex} updateSection={updateSection} onChangeBox={updateLayoutBox} onUpdateItem={updatePresetItem} onDeleteItem={deletePresetItem} onLayoutChange={setSectionLayout} onLayoutItemChange={updateSectionLayoutItem} onLayoutPreset={applySectionLayoutPreset}/>
     </aside>
 
     <input ref={imageRef} type="file" accept="image/*" multiple hidden onChange={e => { addImages(e.target.files, imageTarget); e.currentTarget.value = ''; setImageTarget(null) }}/>
@@ -785,40 +718,6 @@ export default function App() {
     {helpOpen && <HelpDrawer version={APP_VERSION} onClose={() => setHelpOpen(false)} onReplay={reopenOnboarding} onOpenBlocks={() => { setHelpOpen(false); setLeftTab('blocks'); setBlockPickerOpen(true) }} onImport={() => { setHelpOpen(false); importRef.current?.click() }}/>}
     {onboardingOpen && <GuidedTour step={onboardingStep} onStep={changeOnboardingStep} onSkip={() => completeOnboarding(false)} onDontShowAgain={() => completeOnboarding(true)} onFinish={() => completeOnboarding(true)}/>}
     {toast && <div className="toast"><Check size={16}/>{toast}</div>}
-  </div>
-}
-
-function BriefStudio({ project, workspace, onClose, onProductChange, onWorkspaceChange, onBriefChange, onCreateDraft, onApprove, onApply, onDownloadBrief }: { project: Project; workspace: BriefWorkspace; onClose: () => void; onProductChange: (patch: { name?: string; category?: Project['category']; layout?: Project['layout']; destination?: string; subtitle?: string }) => void; onWorkspaceChange: (next: BriefWorkspace) => void; onBriefChange: (next: CanvasBrief) => void; onCreateDraft: () => void; onApprove: () => void; onApply: () => void; onDownloadBrief: () => void }) {
-  const brief = workspace.brief
-  const [step, setStep] = useState(brief ? brief.status === 'approved' ? 2 : 1 : 0)
-  const setWorkspace = (patch: Partial<BriefWorkspace>) => onWorkspaceChange({ ...workspace, ...patch })
-  const setBrief = (patch: Partial<CanvasBrief>) => { if (brief) onBriefChange({ ...brief, ...patch }) }
-  const changeFact = (id: string, patch: Partial<BriefWorkspace['facts'][number]>) => setWorkspace({ facts: workspace.facts.map(fact => fact.id === id ? { ...fact, ...patch } : fact) })
-  const addFact = () => setWorkspace({ facts: [...workspace.facts, { id: crypto.randomUUID(), field: '', value: '', source: '사용자 입력', status: 'confirmed' }] })
-  const removeFact = (id: string) => setWorkspace({ facts: workspace.facts.filter(fact => fact.id !== id) })
-  const setBlocks = (blocks: CanvasBriefBlock[]) => { if (brief) setBrief({ blocks, blockOrder: blocks.map(block => block.type) }) }
-  const addBlock = (type: GeneratableSectionType) => { if (!brief || brief.blocks.some(block => block.type === type && type === 'text')) return; setBlocks([...brief.blocks, { type, categoryLabel: brief.common.categoryLabel, title: '제목', body: '본문' }]) }
-  const moveBlock = (index: number, direction: -1 | 1) => { if (!brief) return; const target = index + direction; if (target < 0 || target >= brief.blocks.length) return; const blocks = [...brief.blocks]; [blocks[index], blocks[target]] = [blocks[target], blocks[index]]; setBlocks(blocks) }
-  const updateBlock = (index: number, patch: Partial<CanvasBriefBlock>) => { if (!brief) return; setBlocks(brief.blocks.map((block, current) => current === index ? { ...block, ...patch } : block)) }
-  const selectedAssets = new Set(workspace.selectedImageIds)
-  return <div className="modal-backdrop brief-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}>
-    <section className="brief-studio" role="dialog" aria-modal="true" aria-labelledby="brief-studio-title">
-      <header className="brief-studio-head"><div><p>AI WRITING FLOW</p><h2 id="brief-studio-title">상품 자료에서 캔버스 초안까지</h2><span>원본은 보존하고, 확인된 사실만 승인 brief에 확정합니다.</span></div><button className="icon-button" aria-label="닫기" onClick={onClose}><X/></button></header>
-      <nav className="brief-steps" aria-label="작성 단계">
-        {['자료 입력', '초안 검토', '승인·반영'].map((label, index) => <button key={label} className={step === index ? 'active' : ''} disabled={index > 0 && !brief} onClick={() => setStep(index)}><b>0{index + 1}</b><span>{label}</span>{index === 2 && brief?.status === 'approved' && <Check size={14}/>}</button>)}
-      </nav>
-      <div className="brief-studio-body">
-        {step === 0 && <div className="brief-input-step">
-          <section className="brief-section"><div className="brief-section-title"><p>PRODUCT BASE</p><h3>기본 상품 정보</h3></div><div className="brief-form-grid"><label><span>상품명</span><input value={project.name} onChange={event => onProductChange({ name: event.target.value })}/></label><label><span>카테고리</span><select value={project.category} onChange={event => onProductChange({ category: event.target.value as Project['category'] })}>{(['금까기', '우리만', '특별한', '골프'] as const).map(value => <option key={value}>{value}</option>)}</select></label><label><span>여행지</span><input value={project.page.destination} placeholder="예: 괌" onChange={event => onProductChange({ destination: event.target.value })}/></label><label><span>부제</span><input value={project.page.subtitle} placeholder="예: 가족 맞춤 휴양 4박 5일" onChange={event => onProductChange({ subtitle: event.target.value })}/></label><label><span>기본 레이아웃</span><select value={project.layout} onChange={event => onProductChange({ layout: event.target.value as Project['layout'] })}>{[['hotel-sales','호텔 판매형'],['theme-package','테마 패키지형'],['journey-longform','장거리 스토리형'],['golf-standard','골프 기본형'],['hotel-detail','호텔 소개형'],['destination-catalog','여행지 카탈로그형'],['offer-promotion','프로모션형']].map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label><label><span>구성 방향</span><select value={workspace.compositionHint || 'auto'} onChange={event => setWorkspace({ compositionHint: event.target.value as BriefWorkspace['compositionHint'] })}><option value="auto">자료 분석 자동 선택</option><option value="photo-led">사진 중심</option><option value="detailed-schedule">상세 일정 중심</option><option value="summary-schedule">간략 일정 중심</option><option value="benefit-led">특전·구성 중심</option><option value="story-led">이미지·설명 중심</option><option value="minimal">최소 구성</option></select></label></div></section>
-          <section className="brief-section"><div className="brief-section-title"><p>RAW MATERIAL</p><h3>원본 상품 자료</h3><small>일정표, 호텔·관광지 설명, 포함 조건, 특전 원문을 그대로 붙여넣으세요.</small></div><textarea value={workspace.rawText} rows={8} placeholder={'예: 1일차 인천 출발 · 괌 도착\n숙박: 두짓타니 괌 4박\n포함: 조식, 공항 왕복 이동'} onChange={event => setWorkspace({ rawText: event.target.value })}/><label className="full-field"><span>원본 URL · 자료 위치</span><textarea value={workspace.sourceUrls.join('\n')} rows={3} placeholder="한 줄에 URL 또는 내부 자료 위치 하나씩" onChange={event => setWorkspace({ sourceUrls: event.target.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean) })}/></label></section>
-          <section className="brief-section"><div className="brief-section-title"><p>FACT PACK</p><h3>사실 확인 상태</h3><small>확인 완료만 생성본의 근거가 됩니다. 미확인 항목은 검토 목록에 남습니다.</small></div><div className="brief-facts">{workspace.facts.map(fact => <div key={fact.id} className="brief-fact"><input aria-label="사실 항목" value={fact.field} placeholder="항목" onChange={event => changeFact(fact.id, { field: event.target.value })}/><input aria-label="사실 값" value={fact.value} placeholder="값 또는 확인 사유" onChange={event => changeFact(fact.id, { value: event.target.value })}/><input aria-label="근거" value={fact.source} placeholder="근거" onChange={event => changeFact(fact.id, { source: event.target.value })}/><select aria-label="확인 상태" value={fact.status} onChange={event => changeFact(fact.id, { status: event.target.value as BriefWorkspace['facts'][number]['status'] })}><option value="confirmed">확인 완료</option><option value="needs-review">확인 필요</option></select><button className="mini-danger" aria-label="사실 삭제" onClick={() => removeFact(fact.id)}><Trash2 size={14}/></button></div>)}</div><button className="outline-add" onClick={addFact}><Plus size={15}/> 사실 항목 추가</button></section>
-          <section className="brief-section"><div className="brief-section-title"><p>IMAGE DIRECTION</p><h3>초안에 사용할 이미지</h3><small>선택한 이미지만 brief와 생성된 캔버스에 연결됩니다.</small></div>{project.assets.length ? <div className="brief-image-choices">{project.assets.map(asset => <label key={asset.id} className={selectedAssets.has(asset.id) ? 'selected' : ''}><input type="checkbox" checked={selectedAssets.has(asset.id)} onChange={() => { const next = selectedAssets.has(asset.id) ? workspace.selectedImageIds.filter(id => id !== asset.id) : [...workspace.selectedImageIds, asset.id]; setWorkspace({ selectedImageIds: next }) }}/><img src={asset.src} alt=""/><span title={asset.src.startsWith('http') ? asset.src : asset.name}>{asset.src.startsWith('http') ? asset.src : asset.name}</span></label>)}</div> : <div className="brief-empty">왼쪽 이미지 탭에서 이미지 또는 URL을 먼저 추가하세요.</div>}</section>
-          <footer className="brief-action-row"><span>원본 자료는 프로젝트 내부 작업 공간에만 보존됩니다.</span><button className="primary-button" onClick={() => { onCreateDraft(); setStep(1) }}><Sparkles size={16}/> 초안 생성</button></footer>
-        </div>}
-        {step === 1 && <div className="brief-review-step">{!brief ? <div className="brief-empty large">먼저 자료 입력 단계에서 초안을 생성하세요.</div> : <><section className="brief-review-hero"><div><p>DRAFT BRIEF</p><h3>{brief.status === 'approved' ? '승인 후 수정됨 · 재승인이 필요합니다.' : '편집 가능한 구조·문구 초안'}</h3><span>{brief.composition?.reason || '블록 순서와 핵심 문구를 확정한 뒤 승인하세요.'}</span></div><button className="outline-add" onClick={onCreateDraft}><Sparkles size={15}/> 입력 자료로 초안 다시 만들기</button></section><section className="brief-section"><div className="brief-section-title"><p>CORE MESSAGE</p><h3>공통 텍스트</h3></div><div className="brief-form-grid"><label><span>핵심 고객</span><input value={brief.audience} onChange={event => setBrief({ audience: event.target.value })}/></label><label><span>기획 메시지</span><input value={brief.message} onChange={event => setBrief({ message: event.target.value })}/></label><label><span>카테고리 라벨</span><input value={brief.common.categoryLabel} onChange={event => setBrief({ common: { ...brief.common, categoryLabel: event.target.value } })}/></label><label><span>제목</span><input value={brief.common.title} onChange={event => setBrief({ common: { ...brief.common, title: event.target.value } })}/></label><label className="full-field"><span>본문</span><textarea rows={3} value={brief.common.body} onChange={event => setBrief({ common: { ...brief.common, body: event.target.value } })}/></label></div></section><section className="brief-section"><div className="brief-section-title"><p>BLOCK FLOW</p><h3>블록 순서와 문구</h3><small>새로 생성 가능한 7개 블록만 선택됩니다.</small></div><div className="brief-block-list">{brief.blocks.map((block, index) => <article key={`${block.type}-${index}`}><div className="brief-block-head"><b>{String(index + 1).padStart(2, '0')}</b><strong>{SECTION_LABELS[block.type]}</strong><span><button disabled={index === 0} onClick={() => moveBlock(index, -1)}><ChevronUp size={14}/></button><button disabled={index === brief.blocks.length - 1} onClick={() => moveBlock(index, 1)}><ChevronDown size={14}/></button><button className="mini-danger" onClick={() => setBlocks(brief.blocks.filter((_, current) => current !== index))}><Trash2 size={14}/></button></span></div><input aria-label={`${SECTION_LABELS[block.type]} 제목`} value={block.title || ''} placeholder="제목" onChange={event => updateBlock(index, { title: event.target.value })}/><textarea aria-label={`${SECTION_LABELS[block.type]} 본문`} rows={2} value={block.body || ''} placeholder="본문" onChange={event => updateBlock(index, { body: event.target.value })}/></article>)}</div><div className="brief-block-add">{BRIEF_BLOCK_TYPES.filter(type => type !== 'text' || !brief.blocks.some(block => block.type === 'text')).map(type => <button key={type} onClick={() => addBlock(type)}><Plus size={13}/>{SECTION_LABELS[type]}</button>)}</div></section><div className="brief-evidence-grid"><section><p>CONFIRMED FACTS</p>{brief.confirmedFacts.length ? brief.confirmedFacts.map(fact => <div key={`${fact.field}-${fact.value}`}><b>{fact.field}</b><span>{fact.value}</span><small>{fact.source}</small></div>) : <em>확인 완료 사실을 추가하세요.</em>}</section><section><p>NEEDS REVIEW</p>{brief.needsReview.length ? brief.needsReview.map(item => <div key={`${item.field}-${item.reason}`}><b>{item.field}</b><span>{item.reason}</span></div>) : <em>추가 확인 항목이 없습니다.</em>}</section></div><footer className="brief-action-row"><button className="ghost-button" onClick={onDownloadBrief}><FileJson size={16}/> brief JSON 저장</button><button className="primary-button" onClick={() => { onApprove(); setStep(2) }}><Check size={16}/> 이 구조 승인</button></footer></>}</div>}
-        {step === 2 && <div className="brief-approval-step">{!brief ? <div className="brief-empty large">초안이 아직 없습니다.</div> : <><div className={`approval-stamp ${brief.status === 'approved' ? 'approved' : ''}`}><Check size={24}/><div><p>{brief.status === 'approved' ? 'APPROVED BRIEF' : 'WAITING FOR APPROVAL'}</p><h3>{brief.status === 'approved' ? '캔버스 반영 준비 완료' : '검토 후 승인해 주세요.'}</h3><span>{brief.status === 'approved' ? `${new Date(brief.approvedAt).toLocaleString('ko-KR')} 승인` : '승인 전에는 캔버스 JSON을 만들지 않습니다.'}</span></div></div><section className="brief-approval-summary"><div><span>상품</span><b>{brief.product.name}</b></div><div><span>블록</span><b>{brief.blockOrder.map(type => SECTION_LABELS[type]).join(' → ')}</b></div><div><span>이미지</span><b>{brief.imageIds.length}개 연결</b></div><div><span>확인 필요</span><b>{brief.needsReview.length}건</b></div></section><section className="brief-guard"><strong>반영 규칙</strong><p>승인된 brief의 블록 순서·공통 문구·선택 이미지만 내부 초안 Project JSON으로 반영합니다. 가격, 일정, 포함 조건처럼 확인 필요로 남은 내용은 자동 확정하지 않습니다.</p></section><footer className="brief-action-row">{brief.status !== 'approved' ? <button className="primary-button" onClick={onApprove}><Check size={16}/> 최종 승인</button> : <><button className="ghost-button" onClick={onDownloadBrief}><FileJson size={16}/> 승인 brief 저장</button><button className="primary-button" onClick={onApply}><Sparkles size={16}/> 캔버스 초안으로 반영</button></>}</footer></>}</div>}
-      </div>
-    </section>
   </div>
 }
 
@@ -904,14 +803,46 @@ function ImageLibrary({ assets, selected, selectedBox, selectedSpecialMediaIndex
     {!assets.length ? <div className="empty-state"><ImageIcon/><p>이미지를 올리면 이곳에서<br/>선택 이미지 자리에 바로 연결할 수 있습니다.</p></div> : <div className="asset-grid">{assets.map(asset => <article key={asset.id} className={connectedIds.includes(asset.id) ? 'connected' : ''}><button draggable title={asset.src.startsWith('http') ? asset.src : asset.name} aria-label={`${asset.name} 연결 또는 해제`} onDragStart={event => { event.dataTransfer.effectAllowed = 'copy'; event.dataTransfer.setData('text/plain', asset.id); event.dataTransfer.setData('application/x-naeil-library-asset', asset.id) }} onClick={() => onConnect(asset.id)}><img src={asset.src} alt={asset.alt || asset.name}/>{connectedIds.includes(asset.id) && <i><Check/></i>}</button></article>)}</div>}
   </>
 }
-function LayerList({ sections, groups, selectedId, onSelect, onMove, onCreateGroup, onUpdateGroup, onMoveGroup, onUngroup }: { sections: Section[]; groups: ContentGroup[]; selectedId: string; onSelect: (id: string) => void; onMove: (id: string, dir: -1 | 1) => void; onCreateGroup: (ids: string[]) => void; onUpdateGroup: (id: string, patch: Partial<ContentGroup>) => void; onMoveGroup: (id: string, dir: -1 | 1) => void; onUngroup: (id: string) => void }) {
+function LayerList({ sections, groups, selectedId, readOnly, onSelect, onMove, onReorder, onCreateGroup, onUpdateGroup, onMoveGroup, onUngroup }: { sections: Section[]; groups: ContentGroup[]; selectedId: string; readOnly: boolean; onSelect: (id: string) => void; onMove: (id: string, dir: -1 | 1) => void; onReorder: (sourceId: string, targetId: string, placement: 'before' | 'after', forceGroupUnit?: boolean) => void; onCreateGroup: (ids: string[]) => void; onUpdateGroup: (id: string, patch: Partial<ContentGroup>) => void; onMoveGroup: (id: string, dir: -1 | 1) => void; onUngroup: (id: string) => void }) {
   const [grouping, setGrouping] = useState(false)
   const [checked, setChecked] = useState<string[]>([])
+  const [dragged, setDragged] = useState<{ sectionId: string; isGroup: boolean } | null>(null)
+  const [dropTarget, setDropTarget] = useState<{ targetId: string; placement: 'before' | 'after' } | null>(null)
   useEffect(() => setChecked(current => current.filter(id => sections.some(section => section.id === id))), [sections])
   const groupByFirstSection = new Map(groups.map(group => [group.sectionIds[0], group]))
   const groupedIds = new Set(groups.flatMap(group => group.sectionIds))
   const layerLabel = (section: Section) => richTextToPlainText(section.title) || SECTION_LABELS[section.type]
   const toggleChecked = (id: string) => setChecked(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id])
+  const canDrag = !readOnly && !grouping
+  const clearDrag = () => { setDragged(null); setDropTarget(null) }
+  const placementFor = (event: React.DragEvent<HTMLElement>): 'before' | 'after' => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    return event.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+  }
+  const startDrag = (event: React.DragEvent<HTMLElement>, sectionId: string, isGroup = false) => {
+    if (!canDrag) { event.preventDefault(); return }
+    event.stopPropagation()
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', sectionId)
+    event.dataTransfer.setData('application/x-naeil-layer-id', sectionId)
+    setDragged({ sectionId, isGroup })
+  }
+  const overTarget = (event: React.DragEvent<HTMLElement>, targetId: string) => {
+    if (!dragged) return
+    event.preventDefault()
+    event.stopPropagation()
+    event.dataTransfer.dropEffect = 'move'
+    const placement = placementFor(event)
+    setDropTarget(current => current?.targetId === targetId && current.placement === placement ? current : { targetId, placement })
+  }
+  const dropOnTarget = (event: React.DragEvent<HTMLElement>, targetId: string) => {
+    if (!dragged) return
+    event.preventDefault()
+    event.stopPropagation()
+    const placement = placementFor(event)
+    onReorder(dragged.sectionId, targetId, placement, dragged.isGroup)
+    clearDrag()
+  }
   const createGroup = () => {
     const ordered = sections.filter(section => checked.includes(section.id)).map(section => section.id)
     const indexes = ordered.map(id => sections.findIndex(section => section.id === id))
@@ -921,17 +852,24 @@ function LayerList({ sections, groups, selectedId, onSelect, onMove, onCreateGro
     setChecked([])
     setGrouping(false)
   }
-  const layerRow = (section: Section, index: number, inGroup = false) => <div key={section.id} className={`layer-row ${selectedId === section.id ? 'active' : ''} ${inGroup ? 'in-group' : ''}`.trim()}>
+  const layerRow = (section: Section, index: number, inGroup = false) => {
+    const dropClass = dropTarget?.targetId === section.id ? `drop-${dropTarget.placement}` : ''
+    const draggingClass = dragged && !dragged.isGroup && dragged.sectionId === section.id ? 'is-dragging' : ''
+    return <div key={section.id} draggable={canDrag} className={`layer-row ${selectedId === section.id ? 'active' : ''} ${inGroup ? 'in-group' : ''} ${draggingClass} ${dropClass}`.trim()} onDragStart={event => startDrag(event, section.id, false)} onDragOver={event => overTarget(event, section.id)} onDrop={event => dropOnTarget(event, section.id)} onDragEnd={clearDrag}>
     {grouping && <button className={`layer-check ${checked.includes(section.id) ? 'checked' : ''}`} aria-label={`${layerLabel(section)} 그룹 선택`} onClick={() => toggleChecked(section.id)}>{checked.includes(section.id) ? <Check/> : '선택'}</button>}
-    <button className="layer-main" onClick={() => onSelect(section.id)}><GripVertical/><span><b>{String(index + 1).padStart(2, '0')}</b>{layerLabel(section)}</span></button>
+    <button className="layer-main" title={canDrag ? '드래그해서 순서 변경' : undefined} onClick={() => onSelect(section.id)}><GripVertical/><span><b>{String(index + 1).padStart(2, '0')}</b>{layerLabel(section)}</span></button>
     {!grouping && <span className="layer-move"><button aria-label={`${layerLabel(section)} 위로 이동`} disabled={index === 0} onClick={() => onMove(section.id, -1)}><ChevronUp/></button><button aria-label={`${layerLabel(section)} 아래로 이동`} disabled={index === sections.length - 1} onClick={() => onMove(section.id, 1)}><ChevronDown/></button></span>}
   </div>
+  }
   const entries: React.ReactNode[] = []
   sections.forEach((section, index) => {
     const group = groupByFirstSection.get(section.id)
     if (group) {
-      entries.push(<section key={group.id} className={`content-group ${group.collapsed ? 'collapsed' : ''}`}>
+      const groupDropClass = dropTarget?.targetId === group.sectionIds[0] && (group.collapsed || dragged?.isGroup || !group.sectionIds.includes(dragged?.sectionId || '')) ? `drop-${dropTarget.placement}` : ''
+      const groupDragging = dragged?.isGroup && dragged.sectionId === group.sectionIds[0] ? 'is-dragging' : ''
+      entries.push(<section key={group.id} className={`content-group ${group.collapsed ? 'collapsed' : ''} ${groupDragging} ${groupDropClass}`.trim()} onDragOver={event => overTarget(event, group.sectionIds[0])} onDrop={event => dropOnTarget(event, group.sectionIds[0])}>
         <div className="content-group-head">
+          {canDrag && <span className="content-group-drag" draggable aria-label={`${group.name} 드래그로 순서 변경`} title="드래그해서 그룹 순서 변경" onDragStart={event => startDrag(event, group.sectionIds[0], true)} onDragEnd={clearDrag}><GripVertical/></span>}
           <button className="content-group-toggle" aria-label={`${group.name} ${group.collapsed ? '펼치기' : '접기'}`} onClick={() => onUpdateGroup(group.id, { collapsed: !group.collapsed })}>{group.collapsed ? <ChevronDown/> : <ChevronUp/>}</button>
           <input aria-label="콘텐츠 그룹명" value={group.name} onChange={event => onUpdateGroup(group.id, { name: event.target.value })}/>
           <small>{group.sectionIds.length}</small>
@@ -943,348 +881,14 @@ function LayerList({ sections, groups, selectedId, onSelect, onMove, onCreateGro
     }
     if (!groupedIds.has(section.id)) entries.push(layerRow(section, index))
   })
-  return <><div className="panel-heading"><div><p>PAGE STRUCTURE</p><h2>레이어</h2></div><span>{sections.length}</span></div><div className="layer-group-actions">{grouping ? <><small><b>각 블록 맨 왼쪽의 ‘선택’ 버튼</b>을 눌러 연속 블록을 2개 이상 고르세요.</small><button onClick={createGroup} disabled={checked.length < 2}><Check/> 묶기 {checked.length}</button><button onClick={() => { setGrouping(false); setChecked([]) }}><X/> 취소</button></> : <button onClick={() => setGrouping(true)}><Plus/> 그룹 만들기</button>}</div><div className="layer-list">{entries}</div></> }
+  return <><div className="panel-heading"><div><p>PAGE STRUCTURE</p><h2>레이어</h2></div><span>{sections.length}</span></div><div className="layer-group-actions">{grouping ? <><small><b>각 블록 맨 왼쪽의 ‘선택’ 버튼</b>을 눌러 연속 블록을 2개 이상 고르세요.</small><button onClick={createGroup} disabled={checked.length < 2}><Check/> 묶기 {checked.length}</button><button onClick={() => { setGrouping(false); setChecked([]) }}><X/> 취소</button></> : <button onClick={() => setGrouping(true)}><Plus/> 그룹 만들기</button>}</div><div className="layer-list" onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget(null) }}>{entries}</div></> }
 
 function PageCover({ project, onStartBlank, onStartSample, onStartTemplate, onImport }: { project: Project; onStartBlank: () => void; onStartSample: () => void; onStartTemplate: (id: TemplatePresetId) => void; onImport: () => void }) {
   const isBlank = !project.page.title.trim() && !project.page.subtitle.trim() && !project.page.destination.trim() && project.sections.length === 0 && project.assets.length === 0
   if (isBlank) return <header className="page-cover blank-cover" aria-label="새 기획안 시작"><div className="quick-start-mark"><Blocks/></div><p className="quick-start-kicker">NAEIL SPECIAL CANVAS</p><strong>어떻게 시작할까요?</strong><p>빈 캔버스에서 바로 조립하거나, 실전 유형 템플릿을 골라 문구와 사진만 교체하세요.</p><div className="quick-start-actions"><button className="primary-button" onClick={onStartBlank}><Plus/> 빈 기획안 시작</button><button className="quick-start-button" onClick={onStartSample}><Sparkles/> 샘플 기획안으로 연습</button><button className="quick-start-button" onClick={onImport}><FileJson/> AI가 만든 JSON 불러오기</button></div><div className="template-preset-section"><p className="template-preset-kicker">STARTER TEMPLATES</p><div className="template-preset-grid">{TEMPLATE_PRESETS.map(preset => <button key={preset.id} className="template-preset-card" onClick={() => onStartTemplate(preset.id)}><span>{preset.category}</span><b>{preset.label}</b><small>{preset.summary}</small></button>)}</div></div></header>
   return null
 }
-function EditableLayoutBox({ box, active, onSelect, onChange, children }: { box: BlockBox; active: boolean; onSelect: () => void; onChange: (next: BlockBox) => void; children: React.ReactNode }) {
-  const [draft, setDraft] = useState<BlockBox | null>(null)
-  const visible = draft || box
-  useEffect(() => setDraft(null), [box.column, box.row, box.columnSpan, box.rowSpan, box.zIndex])
-  const interact = (event: React.PointerEvent<HTMLButtonElement>, mode: 'move' | 'resize') => {
-    event.preventDefault(); event.stopPropagation(); onSelect()
-    const canvas = event.currentTarget.closest('.section-layout-canvas') as HTMLElement | null
-    if (!canvas) return
-    const rect = canvas.getBoundingClientRect(); const start = { ...box }; let next = { ...box }
-    const move = (pointer: PointerEvent) => {
-      const deltaColumn = Math.round((pointer.clientX - event.clientX) / (rect.width / 12))
-      const deltaRow = Math.round((pointer.clientY - event.clientY) / 58)
-      if (mode === 'move') next = { ...start, column: Math.max(1, Math.min(13 - start.columnSpan, start.column + deltaColumn)), row: Math.max(1, Math.min(80, start.row + deltaRow)) }
-      else { const columnSpan = Math.max(2, Math.min(13 - start.column, start.columnSpan + deltaColumn)); const rowSpan = Math.max(2, Math.min(18, start.rowSpan + deltaRow)); next = { ...start, columnSpan, rowSpan } }
-      setDraft(next)
-    }
-    const finish = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', finish); setDraft(null); onChange(next) }
-    window.addEventListener('pointermove', move); window.addEventListener('pointerup', finish)
-  }
-  return <article className={`layout-box layout-box-${box.kind} ${active ? 'active' : ''}`} style={{ left: `${(visible.column - 1) / 12 * 100}%`, top: `${(visible.row - 1) * 58}px`, width: `${visible.columnSpan / 12 * 100}%`, height: `${visible.rowSpan * 58}px`, zIndex: visible.zIndex }} onClick={event => { event.stopPropagation(); onSelect() }}>
-    <button className="layout-box-drag" aria-label={`${box.kind} 박스 이동`} onPointerDown={event => interact(event, 'move')}><GripVertical/><span>{box.kind === 'content' ? '기본 내용' : box.kind === 'media' ? '기본 이미지' : box.kind === 'text' ? '텍스트' : '이미지'}</span></button>
-    <div className="layout-box-body">{children}</div>
-    {active && <button className="layout-box-resize" aria-label="박스 크기 조절" onPointerDown={event => interact(event, 'resize')}/>} 
-  </article>
-}
-
-function InlineText({ tag = 'span', value, className = '', multiline = false, readOnly = false, onEditStart, onChange, children }: { tag?: InlineTag; value: string; className?: string; multiline?: boolean; readOnly?: boolean; onEditStart?: () => void; onChange: (value: string) => void; children?: React.ReactNode }) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(value)
-  const inputRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
-  const prevValueRef = useRef(value)
-  useEffect(() => {
-    if (prevValueRef.current !== value) {
-      prevValueRef.current = value
-      setEditing(false)
-      setDraft(value)
-    }
-  }, [value])
-  useEffect(() => { if (editing) inputRef.current?.focus() }, [editing])
-  const start = (event: React.MouseEvent) => { if (readOnly) return; event.preventDefault(); event.stopPropagation(); onEditStart?.(); setDraft(value); setEditing(true) }
-  const commitValue = () => { setEditing(false); if (draft !== value) onChange(draft) }
-  const cancel = () => { setDraft(value); setEditing(false) }
-  const keyDown = (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    event.stopPropagation()
-    if (event.key === 'Escape') { event.preventDefault(); cancel() }
-    if (event.key === 'Enter' && (!multiline || event.ctrlKey || event.metaKey)) { event.preventDefault(); commitValue() }
-  }
-  if (editing) {
-    const props = { ref: inputRef, className: `inline-edit-input inline-edit-${tag} ${className}`, value: draft, onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setDraft(event.target.value), onBlur: commitValue, onKeyDown: keyDown, onClick: (event: React.MouseEvent) => event.stopPropagation() }
-    return multiline ? <textarea {...props} rows={Math.max(2, draft.split('\n').length)}/> : <input {...props}/>
-  }
-  const Component = tag as React.ElementType
-  return <Component className={`${className} inline-editable ${multiline ? 'multiline-text' : ''}`.trim()} title={readOnly ? undefined : '더블클릭해서 수정'} onDoubleClick={start}>{children ?? value}</Component>
-}
-
-function RichText({ tag = 'span', value, className = '', readOnly = false, onEditStart, onChange }: { tag?: InlineTag; value: string; className?: string; readOnly?: boolean; onEditStart?: () => void; onChange: (value: string) => void }) {
-  const [editing, setEditing] = useState(false)
-  const ref = useRef<HTMLElement>(null)
-  const safeValue = sanitizeRichText(value)
-  const prevValueRef = useRef(safeValue)
-  useEffect(() => {
-    if (prevValueRef.current !== safeValue) {
-      prevValueRef.current = safeValue
-      setEditing(false)
-    }
-  }, [safeValue])
-  useEffect(() => { if (editing && ref.current) { ref.current.focus(); const selection = window.getSelection(); const range = document.createRange(); range.selectNodeContents(ref.current); range.collapse(false); selection?.removeAllRanges(); selection?.addRange(range) } }, [editing])
-  const commitValue = () => { const next = sanitizeRichText(ref.current?.innerHTML || ''); setEditing(false); if (next !== safeValue) onChange(next) }
-  const Component = tag as React.ElementType
-  if (editing) return <Component ref={ref} className={`${className} rich-inline-editable`} contentEditable suppressContentEditableWarning dangerouslySetInnerHTML={{ __html: safeValue }} onBlur={commitValue} onKeyDown={(event: React.KeyboardEvent) => { event.stopPropagation(); if (event.key === 'Escape') { event.preventDefault(); setEditing(false) } if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); commitValue() } }} onClick={(event: React.MouseEvent) => event.stopPropagation()}/>
-  return <Component className={`${className} rich-inline-render`} title={readOnly ? undefined : '더블클릭해서 수정'} onDoubleClick={(event: React.MouseEvent) => { if (readOnly) return; event.preventDefault(); event.stopPropagation(); onEditStart?.(); setEditing(true) }} dangerouslySetInnerHTML={{ __html: safeValue }}/>
-}
-
-function RichTextEditor({ label, value, onChange, rows = 3 }: { label: string; value: string; onChange: (value: string) => void; rows?: number }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const focusedRef = useRef(false)
-  const composingRef = useRef(false)
-  // Do not control contentEditable with innerHTML while it is being typed in.
-  // Re-injecting HTML on every Korean IME composition moves the caret and makes
-  // characters appear to be pushed sideways.
-  useEffect(() => {
-    if (ref.current && !focusedRef.current) ref.current.innerHTML = sanitizeRichText(value)
-  }, [value])
-  const commitValue = () => {
-    const next = sanitizeRichText(ref.current?.innerHTML || '')
-    if (next !== sanitizeRichText(value)) onChange(next)
-  }
-  const syncWhileTyping = () => {
-    // The editable DOM owns text while typing. Persist once on blur instead of
-    // creating an undo snapshot for every Korean syllable or space.
-    if (composingRef.current) return
-  }
-  const applyCommand = (command: string, commandValue?: string) => {
-    const editor = ref.current
-    if (!editor) return
-    const selection = window.getSelection()
-    const selectedInsideEditor = Boolean(selection?.rangeCount && !selection.isCollapsed && selection.anchorNode && editor.contains(selection.anchorNode))
-    if (!selectedInsideEditor) {
-      const range = document.createRange()
-      range.selectNodeContents(editor)
-      selection?.removeAllRanges()
-      selection?.addRange(range)
-    }
-    editor.focus()
-    document.execCommand(command, false, commandValue)
-    onChange(sanitizeRichText(editor.innerHTML))
-  }
-  return <div className="field rich-text-field"><span>{label}</span><div className="rich-text-toolbar" onMouseDown={event => event.preventDefault()}><button type="button" tabIndex={-1} aria-label="굵게" title="선택 문장 굵게 · 선택하지 않으면 전체 적용" onClick={() => applyCommand('bold')}><strong>B</strong></button><span className="rich-text-divider"/>{RICH_TEXT_COLORS.map(color => <button key={color.value} type="button" tabIndex={-1} aria-label={`${color.label} 글자색`} title={`${color.label} · 선택하지 않으면 전체 적용`} className="rich-text-color" style={{ '--swatch': color.value } as React.CSSProperties} onClick={() => applyCommand('foreColor', color.value)}/>) }<span className="rich-text-divider"/>{RICH_TEXT_SIZES.map(size => <button key={size.value} type="button" tabIndex={-1} title={`글자 크기 ${size.label} · 선택하지 않으면 전체 적용`} className="rich-text-size" onClick={() => applyCommand('fontSize', size.command)}>{size.label}</button>)}</div><div ref={ref} className="rich-text-editor" role="textbox" aria-label={label} aria-multiline={rows > 1} contentEditable suppressContentEditableWarning data-rows={rows} onFocus={() => { focusedRef.current = true }} onBlur={() => { focusedRef.current = false; commitValue() }} onCompositionStart={() => { composingRef.current = true }} onCompositionEnd={() => { composingRef.current = false }} onInput={syncWhileTyping}/><small className="rich-text-hint">문장을 드래그해 서식을 적용하세요. 선택하지 않으면 전체 문장에 적용됩니다.</small></div>
-}
-
-function MultilineText({ value }: { value: string }) {
-  return <>{value.split('\n').map((line, i) => <span key={i}>{line}<br/></span>)}</>
-}
-
-type CommonTextValue = { eyebrow: string; title: string; body: string }
-function CommonText({ value, readOnly, onChange, onEditStart, className = '', children }: { value: CommonTextValue; readOnly: boolean; onChange: (patch: Partial<CommonTextValue>) => void; onEditStart?: () => void; className?: string; children?: React.ReactNode }) {
-  return <div className={`section-text-content ${className}`.trim()} data-guide="copy-area">
-    {!isRichTextEmpty(value.eyebrow) && <InlineText tag="p" className="section-eyebrow" value={value.eyebrow} readOnly={readOnly} onEditStart={onEditStart} onChange={eyebrow => onChange({ eyebrow })}/>}
-    {!isRichTextEmpty(value.title) && <RichText tag="h2" value={value.title} readOnly={readOnly} onEditStart={onEditStart} onChange={title => onChange({ title })}/>} 
-    {!isRichTextEmpty(value.body) && <RichText tag="p" className="section-body" value={value.body} readOnly={readOnly} onEditStart={onEditStart} onChange={body => onChange({ body })}/>} 
-    {children}
-  </div>
-}
-
-function SpecialLayoutSection({ section, assets, dragProps, selectedItemIndex, selectedSpecialMediaIndex, readOnly, onSelectItem, onSelectMedia, onClearTimelineMedia, onDeleteTimelineDay, onSectionChange, onUpdateItem, itemActions }: { section: Section; assets: MediaAsset[]; dragProps: (assetId: string) => React.ImgHTMLAttributes<HTMLImageElement>; selectedItemIndex: number | null; selectedSpecialMediaIndex: number | null; readOnly: boolean; onSelectItem: (index: number) => void; onSelectMedia: (index: number) => void; onClearTimelineMedia: (sectionId: string, mediaIndex: number) => void; onDeleteTimelineDay: (sectionId: string, dayIndex: number) => void; onSectionChange: (patch: Partial<Section>) => void; onUpdateItem: (index: number, value: string | string[] | Partial<IconCardItem>) => void; itemActions: (index: number, total: number) => React.ReactNode }) {
-  const media = section.mediaIds.map(id => assets.find(asset => asset.id === id))
-  const imageFocus = (asset?: MediaAsset): ImageFocus => asset ? section.mediaLayoutItems?.find(item => item.assetId === asset.id)?.focus || 'center center' : 'center center'
-  const image = (asset: MediaAsset | undefined, mediaIndex: number, label: string, className = '') => { const hero = section.type === 'timeline' && mediaIndex === 0; if (hero && section.timelineHeroVisible === false) return null; const showRemove = section.type === 'timeline' && !hero && selectedSpecialMediaIndex === mediaIndex; return <div className={`special-media-frame ${selectedSpecialMediaIndex === mediaIndex ? 'active' : ''} ${hero ? 'timeline-hero-frame' : ''}`} onClick={event => { event.stopPropagation(); onSelectMedia(mediaIndex) }}>{hero && <button className="timeline-hero-remove" onClick={event => { event.stopPropagation(); onSectionChange({ timelineHeroVisible: false }) }}><Trash2/> 히어로 이미지 삭제</button>}{asset ? <><img className={className} src={asset.src} alt={asset.alt || asset.name} style={{ objectPosition: imageFocus(asset) }} {...dragProps(asset.id)}/><span className="special-media-label" title={asset.src.startsWith('http') ? asset.src : asset.name}>{asset.src.startsWith('http') ? asset.src : asset.name}</span>{showRemove && <button className="special-media-remove" onClick={event => { event.stopPropagation(); onClearTimelineMedia(section.id, mediaIndex) }}><Trash2/> 이미지 삭제</button>}</> : <div className={`special-media-placeholder ${className}`}><ImageIcon/><span>이미지 연결</span></div>}</div> }
-  const select = (event: React.MouseEvent, itemIndex: number) => { event.stopPropagation(); onSelectItem(itemIndex) }
-  if (section.type === 'hero-cover') {
-    return <div className="special-block hero-cover-block"><div className="hero-cover-stage">{image(media[0], 0, '커버 배경 이미지', 'hero-cover-bg')}<div className="hero-cover-overlay">{section.items.length > 0 && <div className="hero-cover-badges">{section.items.map((badge, itemIndex) => <span key={itemIndex} className={selectedItemIndex === itemIndex ? 'active' : ''} onClick={event => select(event, itemIndex)}>{itemActions(itemIndex, section.items.length)}<InlineText tag="b" value={badge} readOnly={readOnly} onEditStart={() => onSelectItem(itemIndex)} onChange={value => onUpdateItem(itemIndex, value)}/></span>)}</div>}<CommonText className="hero-cover-copy" value={{ eyebrow: section.eyebrow, title: section.title, body: section.body }} readOnly={readOnly} onChange={onSectionChange}/></div></div></div>
-  }
-  if (section.type === 'route-bar') {
-    return <div className="special-block route-bar-block"><CommonText className="special-common-copy" value={{ eyebrow: section.eyebrow, title: section.title, body: section.body }} readOnly={readOnly} onChange={onSectionChange}/><ol className="route-bar-track">{section.items.map((stop, itemIndex) => <li key={itemIndex} className={selectedItemIndex === itemIndex ? 'active' : ''} onClick={event => select(event, itemIndex)}>{itemActions(itemIndex, section.items.length)}<b>{String(itemIndex + 1).padStart(2, '0')}</b><InlineText tag="span" value={stop} readOnly={readOnly} onEditStart={() => onSelectItem(itemIndex)} onChange={value => onUpdateItem(itemIndex, value)}/></li>)}</ol><div className="route-bar-map">{image(media[0], 0, '지도 이미지 (선택)')}</div></div>
-  }
-  if (section.type === 'option-grid') {
-    return <div className="special-block option-grid-block"><CommonText className="special-common-copy" value={{ eyebrow: section.eyebrow, title: section.title, body: section.body }} readOnly={readOnly} onChange={onSectionChange}/><div className="option-grid">{section.items.map((label, itemIndex) => <figure key={itemIndex} className={selectedItemIndex === itemIndex ? 'active' : ''} onClick={event => select(event, itemIndex)}>{itemActions(itemIndex, section.items.length)}<div className="option-circle">{image(media[itemIndex], itemIndex, `옵션 ${itemIndex + 1}`)}</div><figcaption><InlineText tag="strong" value={label} readOnly={readOnly} onEditStart={() => onSelectItem(itemIndex)} onChange={value => onUpdateItem(itemIndex, value)}/></figcaption></figure>)}</div></div>
-  }
-  if (section.type === 'vs-compare') {
-    return <div className="special-block vs-compare-block"><CommonText className="special-common-copy" value={{ eyebrow: section.eyebrow, title: section.title, body: section.body }} readOnly={readOnly} onChange={onSectionChange}/><div className="vs-compare-wrap"><span className="vs-badge" aria-hidden="true">VS</span>{section.items.slice(0, 2).map((item, itemIndex) => { const parsed = splitTimeline(item); const update = (tag: string, title: string, body: string) => onUpdateItem(itemIndex, joinTimeline(tag, title, body)); return <article key={itemIndex} className={selectedItemIndex === itemIndex ? 'active' : ''} onClick={event => select(event, itemIndex)}>{itemActions(itemIndex, Math.min(2, section.items.length))}{image(media[itemIndex], itemIndex, `비교 이미지 ${itemIndex + 1}`, 'vs-compare-media')}<div className="vs-compare-copy">{parsed.time && <InlineText tag="span" className="vs-compare-tag" value={parsed.time} readOnly={readOnly} onEditStart={() => onSelectItem(itemIndex)} onChange={tag => update(tag, parsed.title, parsed.body)}/>}<InlineText tag="h3" value={parsed.title} readOnly={readOnly} onEditStart={() => onSelectItem(itemIndex)} onChange={title => update(parsed.time, title, parsed.body)}/><InlineText tag="p" value={parsed.body} multiline readOnly={readOnly} onEditStart={() => onSelectItem(itemIndex)} onChange={body => update(parsed.time, parsed.title, body)}/></div></article> })}</div></div>
-  }
-  if (section.type === 'service-bar') {
-    return <div className="special-block service-bar-block"><CommonText className="special-common-copy" value={{ eyebrow: section.eyebrow, title: section.title, body: section.body }} readOnly={readOnly} onChange={onSectionChange}/><div className="service-bar-list">{section.items.map((item, itemIndex) => { const parsed = splitPair(item); const update = (desc: string, key: string) => onUpdateItem(itemIndex, joinPair(desc, key)); return <div key={itemIndex} className={`service-bar-row ${selectedItemIndex === itemIndex ? 'active' : ''}`.trim()} onClick={event => select(event, itemIndex)}><b>{String(itemIndex + 1).padStart(2, '0')}</b><InlineText tag="span" className="service-bar-desc" value={parsed.title} multiline readOnly={readOnly} onEditStart={() => onSelectItem(itemIndex)} onChange={desc => update(desc, parsed.body)}/><InlineText tag="strong" className="service-bar-key" value={parsed.body} readOnly={readOnly} onEditStart={() => onSelectItem(itemIndex)} onChange={key => update(parsed.title, key)}/>{itemActions(itemIndex, section.items.length)}</div> })}</div></div>
-  }
-  if (section.type === 'caption-grid') { const numbered = section.listStyle === 'offer'; const caption = (itemIndex: number) => { const value = splitPair(section.items[itemIndex] || ''); const update = (title: string, body: string) => onUpdateItem(itemIndex, joinPair(title, body)); return <figcaption>{numbered && <b className="caption-badge">{String(itemIndex + 1).padStart(2, '0')}</b>}<InlineText tag="strong" value={value.title} readOnly={readOnly} onEditStart={() => onSelectItem(itemIndex)} onChange={title => update(title, value.body)}/><InlineText tag="span" value={value.body} multiline readOnly={readOnly} onEditStart={() => onSelectItem(itemIndex)} onChange={body => update(value.title, body)}/></figcaption> }; return <div className={`special-block caption-grid-block ${numbered ? 'caption-grid-numbered' : ''}`.trim()}><CommonText className="special-common-copy caption-grid-copy" value={{ eyebrow: section.eyebrow, title: section.title, body: section.body }} readOnly={readOnly} onChange={onSectionChange}/><div className="caption-grid">{section.items.map((_, itemIndex) => <figure key={itemIndex} className={selectedItemIndex === itemIndex ? 'active' : ''} onClick={event => select(event, itemIndex)}>{itemActions(itemIndex, section.items.length)}{image(media[itemIndex], itemIndex, `이미지 ${itemIndex + 1}`)}{caption(itemIndex)}</figure>)}</div></div> }
-  if (section.type === 'menu-zigzag') {
-    return <div className="special-block menu-zigzag-block"><CommonText className="special-common-copy" value={{ eyebrow: section.eyebrow, title: section.title, body: section.body }} readOnly={readOnly} onChange={onSectionChange}/><div className="menu-zigzag">{section.items.map((item, itemIndex) => { const parsed = splitPair(item); const update = (title: string, body: string) => onUpdateItem(itemIndex, joinPair(title, body)); const reversed = Boolean(section.menuItemReversed?.[itemIndex]); return <article key={itemIndex} className={`${selectedItemIndex === itemIndex ? 'active' : ''} ${reversed ? 'is-reversed' : ''}`.trim()} onClick={event => select(event, itemIndex)}>{itemActions(itemIndex, section.items.length)}{image(media[itemIndex], itemIndex, `추천 이미지 ${itemIndex + 1}`)}<div><InlineText tag="h3" value={parsed.title} readOnly={readOnly} onEditStart={() => onSelectItem(itemIndex)} onChange={title => update(title, parsed.body)}/><InlineText tag="p" value={parsed.body} multiline readOnly={readOnly} onEditStart={() => onSelectItem(itemIndex)} onChange={body => update(parsed.title, body)}/></div></article> })}</div></div>
-  }
-  const dayStarts = section.timelineDayStarts || []
-  return <div className="special-block timeline-block"><CommonText className="special-common-copy" value={{ eyebrow: section.eyebrow, title: section.title, body: section.body }} readOnly={readOnly} onChange={onSectionChange}/><div className="timeline-reference-body">{image(media[0], 0, '대표 이미지', 'timeline-hero')}<div className="timeline-list">{section.items.map((item, itemIndex) => { const parsed = splitTimeline(item); const update = (time: string, title: string, body: string) => onUpdateItem(itemIndex, joinTimeline(time, title, body)); const day = dayStarts.indexOf(itemIndex) + 1; return <div className="timeline-day" key={itemIndex}>{day > 0 && <p className="timeline-day-label"><span>{day}일차</span>{dayStarts.length > 1 && <button className="timeline-day-remove" onClick={event => { event.stopPropagation(); onDeleteTimelineDay(section.id, day - 1) }}><Trash2/> 일차 삭제</button>}</p>}<article className={selectedItemIndex === itemIndex ? 'active' : ''} onClick={event => select(event, itemIndex)}>{itemActions(itemIndex, section.items.length)}<div className="timeline-copy"><b><InlineText tag="span" value={parsed.time} readOnly={readOnly} onEditStart={() => onSelectItem(itemIndex)} onChange={time => update(time, parsed.title, parsed.body)}/> <InlineText tag="span" value={parsed.title} readOnly={readOnly} onEditStart={() => onSelectItem(itemIndex)} onChange={title => update(parsed.time, title, parsed.body)}/></b><InlineText tag="p" value={parsed.body} multiline readOnly={readOnly} onEditStart={() => onSelectItem(itemIndex)} onChange={body => update(parsed.time, parsed.title, body)}/></div>{image(media[itemIndex + 1], itemIndex + 1, `일정 이미지 ${itemIndex + 1}`)}</article></div> })}</div></div></div>
-}
-
-function SectionView({ section, assets, selected, readOnly, activeBoxId, activeItemIndex, activeSpecialMediaIndex, index, total, onSelect, onSelectBox, onSelectItem, onSelectSpecialMedia, onClearTimelineMedia, onSetTimelineHeroVisible, onDeleteTimelineDay, onSectionChange, onBoxChange, onUpdateItem, onAddFlowBox, onMoveFlowBox, onDeleteFlowBox, onAddItem, onAddTimelineDay, onInsertItem, onDuplicateItem, onMoveItem, onReorderIconCard, onDeleteItem, onToggleMenuItemLayout, onMove, onDuplicate, onDelete, onSwapMedia, onAddLibraryMedia }: { section: Section; assets: MediaAsset[]; selected: boolean; readOnly: boolean; activeBoxId: string; activeItemIndex: number | null; activeSpecialMediaIndex: number | null; index: number; total: number; onSelect: () => void; onSelectBox: (id: string) => void; onSelectItem: (index: number) => void; onSelectSpecialMedia: (index: number) => void; onClearTimelineMedia: (sectionId: string, mediaIndex: number) => void; onSetTimelineHeroVisible: (sectionId: string, visible: boolean) => void; onDeleteTimelineDay: (sectionId: string, dayIndex: number) => void; onSectionChange: (patch: Partial<Section>) => void; onBoxChange: (boxId: string, patch: Partial<BlockBox>) => void; onUpdateItem: (index: number, value: string | string[] | Partial<IconCardItem>) => void; onAddFlowBox: (sectionId: string, kind: 'text' | 'image') => void; onMoveFlowBox: (sectionId: string, boxId: string, direction: -1 | 1) => void; onDeleteFlowBox: (sectionId: string, boxId: string) => void; onAddItem: (sectionId: string) => void; onAddTimelineDay: (sectionId: string) => void; onInsertItem: (sectionId: string, index: number, placement: 'above' | 'below') => void; onDuplicateItem: (sectionId: string, index: number) => void; onMoveItem: (sectionId: string, index: number, direction: -1 | 1) => void; onReorderIconCard: (sectionId: string, fromIndex: number, insertionIndex: number) => void; onDeleteItem: (sectionId: string, index: number) => void; onToggleMenuItemLayout: (sectionId: string, index: number) => void; onMove: (id: string, d: -1 | 1) => void; onDuplicate: (id: string) => void; onDelete: (id: string) => void; onSwapMedia: (sectionId: string, fromAssetId: string, toAssetId: string) => void; onAddLibraryMedia: (sectionId: string, boxId: string, assetId: string) => void }) {
-  const boxes = normalizeLayoutBoxes(section).filter(box => !(box.kind === 'media' && !(box.assetIds || []).length && section.type !== 'image'))
-  const tableHeaders = section.tableHeaders?.length ? section.tableHeaders : ['구분', '내용']
-  const tableRows = (section.tableRows || []).map(row => tableHeaders.map((_, itemIndex) => row[itemIndex] || ''))
-  const iconCards = section.iconCards || []
-  const [draggedIconCardIndex, setDraggedIconCardIndex] = useState<number | null>(null)
-  const [iconCardDropIndex, setIconCardDropIndex] = useState<number | null>(null)
-  const listStyle = section.type === 'offer' || section.listStyle === 'offer' ? 'offer' : 'list'
-  const isItemPreset = ITEM_PRESET_TYPES.has(section.type)
-  const bgTone = `bg-${section.background || 'white'}`
-  const visibleMediaBox = boxes.find(box => (box.kind === 'media' || box.kind === 'image') && (box.assetIds || []).length)
-  const dragProps = (assetId: string) => ({ draggable: true, onDragStart: (event: React.DragEvent<HTMLElement>) => { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', assetId); event.dataTransfer.setData('application/x-naeil-canvas-asset', assetId); event.currentTarget.classList.add('is-dragging') }, onDragEnd: (event: React.DragEvent<HTMLElement>) => event.currentTarget.classList.remove('is-dragging') })
-  const dropProps = (boxId: string, targetAssetId?: string) => ({
-    onDragOver: (event: React.DragEvent<HTMLElement>) => { event.preventDefault(); event.dataTransfer.dropEffect = event.dataTransfer.types.includes('application/x-naeil-library-asset') ? 'copy' : 'move'; event.currentTarget.classList.add('is-drop-target') },
-    onDragLeave: (event: React.DragEvent<HTMLElement>) => event.currentTarget.classList.remove('is-drop-target'),
-    onDrop: (event: React.DragEvent<HTMLElement>) => {
-      event.preventDefault(); event.stopPropagation(); event.currentTarget.classList.remove('is-drop-target')
-      const libraryAssetId = event.dataTransfer.getData('application/x-naeil-library-asset')
-      const canvasAssetId = event.dataTransfer.getData('application/x-naeil-canvas-asset') || event.dataTransfer.getData('text/plain')
-      onSelectBox(boxId)
-      if (libraryAssetId) {
-        if (targetAssetId) onSwapMedia(section.id, libraryAssetId, targetAssetId)
-        else onAddLibraryMedia(section.id, boxId, libraryAssetId)
-      } else if (canvasAssetId && targetAssetId) onSwapMedia(section.id, canvasAssetId, targetAssetId)
-    },
-  })
-  const specialDragProps = (assetId: string) => ({
-    ...dragProps(assetId),
-    onDragOver: (event: React.DragEvent<HTMLElement>) => { event.preventDefault(); event.dataTransfer.dropEffect = event.dataTransfer.types.includes('application/x-naeil-library-asset') ? 'copy' : 'move'; event.currentTarget.classList.add('is-drop-target') },
-    onDragLeave: (event: React.DragEvent<HTMLElement>) => event.currentTarget.classList.remove('is-drop-target'),
-    onDrop: (event: React.DragEvent<HTMLElement>) => { event.preventDefault(); event.currentTarget.classList.remove('is-drop-target'); const fromAssetId = event.dataTransfer.getData('application/x-naeil-library-asset') || event.dataTransfer.getData('application/x-naeil-canvas-asset') || event.dataTransfer.getData('text/plain'); if (fromAssetId) onSwapMedia(section.id, fromAssetId, assetId) },
-  })
-  const itemActions = (itemIndex: number, itemTotal: number) => selected && activeItemIndex === itemIndex ? <div className="preset-item-actions" onClick={event => event.stopPropagation()}>{section.type !== 'menu-zigzag' && <button aria-label={section.type === 'caption-grid' ? '위에 이미지 1행 추가' : '위에 항목 추가'} title={section.type === 'caption-grid' ? '위에 이미지 1행 추가' : '위에 추가'} onClick={() => onInsertItem(section.id, itemIndex, 'above')}><Plus/></button>}<button aria-label="항목 위로" title="위로 이동" disabled={itemIndex === 0} onClick={() => onMoveItem(section.id, itemIndex, -1)}><ChevronUp/></button><button aria-label="항목 아래로" title="아래로 이동" disabled={itemIndex === itemTotal - 1} onClick={() => onMoveItem(section.id, itemIndex, 1)}><ChevronDown/></button>{section.type === 'menu-zigzag' ? <button aria-label="이미지와 텍스트 위치 반전" title="이미지·텍스트 반전" onClick={() => onToggleMenuItemLayout(section.id, itemIndex)}><ArrowLeftRight/></button> : <button aria-label={section.type === 'caption-grid' ? '아래에 이미지 1행 추가' : '아래에 항목 추가'} title={section.type === 'caption-grid' ? '아래에 이미지 1행 추가' : '아래에 추가'} onClick={() => onInsertItem(section.id, itemIndex, 'below')}><Plus/></button>}<button aria-label="항목 복제" title="복제" onClick={() => onDuplicateItem(section.id, itemIndex)}><Copy/></button><button aria-label="항목 삭제" title="삭제" className="danger" onClick={() => onDeleteItem(section.id, itemIndex)}><Trash2/></button></div> : null
-  const updateTableCell = (rowIndex: number, cellIndex: number, value: string) => onUpdateItem(rowIndex, tableRows.map((row, index) => index === rowIndex ? row.map((cell, column) => column === cellIndex ? value : cell) : row)[rowIndex])
-  const fullText = <CommonText value={{ eyebrow: section.eyebrow, title: section.title, body: section.body }} readOnly={readOnly} onChange={onSectionChange}>
-    {section.type === 'table' && <div className="section-table">{[
-      <div key="head" className="section-table-head" style={{ gridTemplateColumns: `repeat(${tableHeaders.length}, minmax(0, 1fr))` }}>{tableHeaders.map((header, itemIndex) => <InlineText key={itemIndex} tag="b" value={header} readOnly={readOnly} onChange={value => onSectionChange({ tableHeaders: tableHeaders.map((item, index) => index === itemIndex ? value : item) })}/>)}</div>,
-      ...tableRows.map((row, rowIndex) => <div key={rowIndex} className={selected && activeItemIndex === rowIndex ? 'active' : ''} onClick={event => { event.stopPropagation(); onSelectItem(rowIndex) }} style={{ gridTemplateColumns: `repeat(${tableHeaders.length}, minmax(0, 1fr))` }}>{row.map((cell, cellIndex) => <InlineText key={cellIndex} tag="span" value={cell} readOnly={readOnly} onEditStart={() => onSelectItem(rowIndex)} onChange={value => updateTableCell(rowIndex, cellIndex, value)}/>)}{itemActions(rowIndex, tableRows.length)}</div>)
-    ]}</div>}
-    {section.type === 'icon-card' && <div className={`icon-card-grid icon-card-count-${Math.min(iconCards.length, 3)}`}>{iconCards.map((card, itemIndex) => { const { Icon } = iconCardOption(card.icon); const dropBefore = iconCardDropIndex === itemIndex; return <article key={card.id} className={`icon-card tone-${card.tone} ${selected && activeItemIndex === itemIndex ? 'active' : ''} ${draggedIconCardIndex === itemIndex ? 'is-dragging' : ''} ${dropBefore ? 'is-drop-target' : ''}`.trim()} onClick={event => { event.stopPropagation(); onSelectItem(itemIndex) }} onDragOver={event => { if (draggedIconCardIndex === null || draggedIconCardIndex === itemIndex) return; event.preventDefault(); setIconCardDropIndex(itemIndex) }} onDrop={event => { event.preventDefault(); if (draggedIconCardIndex !== null && draggedIconCardIndex !== itemIndex) onReorderIconCard(section.id, draggedIconCardIndex, itemIndex); setDraggedIconCardIndex(null); setIconCardDropIndex(null) }}><button className="icon-card-drag-handle" draggable aria-label={`${itemIndex + 1}번 카드 순서 변경`} title="드래그해서 카드 순서 변경" onClick={event => event.stopPropagation()} onDragStart={event => { event.stopPropagation(); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', card.id); setDraggedIconCardIndex(itemIndex) }} onDragEnd={() => { setDraggedIconCardIndex(null); setIconCardDropIndex(null) }}><GripVertical/></button>{itemActions(itemIndex, iconCards.length)}<i><Icon/></i><InlineText tag="strong" value={card.title} readOnly={readOnly} onEditStart={() => onSelectItem(itemIndex)} onChange={title => onUpdateItem(itemIndex, { title })}/><InlineText tag="span" value={card.body} multiline readOnly={readOnly} onEditStart={() => onSelectItem(itemIndex)} onChange={body => onUpdateItem(itemIndex, { body })}/></article> })}</div>}
-    {(section.type === 'list' || section.type === 'offer') && section.items.length > 0 && <div className={`section-items items-${listStyle}`}>{section.items.map((item, itemIndex) => <div key={itemIndex} className={selected && activeItemIndex === itemIndex ? 'active' : ''} onClick={event => { event.stopPropagation(); onSelectItem(itemIndex) }}><b>{String(itemIndex + 1).padStart(2, '0')}</b><InlineText tag="span" value={item} multiline readOnly={readOnly} onEditStart={() => onSelectItem(itemIndex)} onChange={value => onUpdateItem(itemIndex, value)}/>{itemActions(itemIndex, section.items.length)}</div>)}</div>}
-  </CommonText>
-  const mediaFor = (box: BlockBox) => {
-    const ids = box.assetIds || []
-    const media = ids.map(id => assets.find(asset => asset.id === id)).filter(Boolean) as MediaAsset[]
-    const customItems = normalizeCustomLayout(ids, section.mediaLayoutItems)
-    if (!media.length) return <div data-guide="image-box" className={`media-placeholder ${selected && activeBoxId === box.id ? 'active' : ''}`} onClick={event => { event.stopPropagation(); onSelectBox(box.id) }} {...dropProps(box.id)}><ImageIcon/><span>라이브러리 이미지를 이곳에 놓아 바로 연결하세요.</span></div>
-    return <div data-guide="image-box" className={`section-media media-count-${media.length} media-auto-${media.length === 1 ? 'single' : media.length % 2 === 0 ? 'even' : 'odd'} media-layout-${section.mediaLayout} ${selected && activeBoxId === box.id ? 'active' : ''}`} onClick={event => { event.stopPropagation(); onSelectBox(box.id) }} {...dropProps(box.id)}>{media.map(asset => { const entry = customItems.find(item => item.assetId === asset.id); const sourceLabel = asset.src.startsWith('http') ? asset.src : asset.name; const label = <figcaption className="media-asset-label" title={sourceLabel}>{sourceLabel}</figcaption>; return <figure key={asset.id} className={`media-asset-frame ${section.mediaLayout === 'custom' && entry ? 'custom-media-frame' : ''}`} style={section.mediaLayout === 'custom' && entry ? { gridColumn: `${entry.column} / span ${entry.columnSpan}`, gridRow: `${entry.row} / span ${entry.rowSpan}` } : undefined} {...dropProps(box.id, asset.id)}><img src={asset.src} alt={asset.alt || asset.name} style={section.mediaLayout === 'custom' && entry ? { objectPosition: entry.focus } : undefined} {...dragProps(asset.id)}/>{label}</figure> })}</div>
-  }
-  const tools = selected && <div className="section-tools" onClick={e => e.stopPropagation()}><button aria-label="블록 위로 이동" disabled={index === 0} onClick={() => onMove(section.id, -1)}><ChevronUp/></button><button aria-label="블록 아래로 이동" disabled={index === total - 1} onClick={() => onMove(section.id, 1)}><ChevronDown/></button><button aria-label="블록 복제" onClick={() => onDuplicate(section.id)}><Copy/></button><button aria-label="블록 삭제" className="danger" onClick={() => onDelete(section.id)}><Trash2/></button></div>
-  if (SPECIAL_LAYOUT_TYPES.has(section.type)) return <section data-section-id={section.id} className={`page-section ${bgTone} type-${section.type} ${selected ? 'selected' : ''} ${section.hidden ? 'is-hidden' : ''}`} onClick={onSelect}>
-    {tools}<div className="section-type-tag">{SECTION_LABELS[section.type]}</div><SpecialLayoutSection section={section} assets={assets} dragProps={specialDragProps} selectedItemIndex={activeItemIndex} selectedSpecialMediaIndex={activeSpecialMediaIndex} readOnly={readOnly} onSelectItem={onSelectItem} onSelectMedia={onSelectSpecialMedia} onClearTimelineMedia={onClearTimelineMedia} onDeleteTimelineDay={onDeleteTimelineDay} onSectionChange={onSectionChange} onUpdateItem={onUpdateItem} itemActions={itemActions}/>{selected && section.type !== 'vs-compare' && <div className={`preset-canvas-add ${section.type === 'timeline' ? 'timeline-canvas-add' : ''}`} onClick={event => event.stopPropagation()}>{section.type === 'timeline' ? <><button onClick={() => onAddItem(section.id)}><Plus/> 일정 추가</button><button onClick={() => onAddTimelineDay(section.id)}><CalendarDays/> 일차 추가</button></> : <button onClick={() => onAddItem(section.id)}><Plus/> {section.type === 'caption-grid' ? '이미지 2개 추가' : section.type === 'hero-cover' ? '뱃지 추가' : section.type === 'route-bar' ? '경유지 추가' : section.type === 'option-grid' ? '선택 옵션 추가' : section.type === 'service-bar' ? '서비스 추가' : '항목 추가'}</button>}</div>}{section.note && <InlineText tag="div" className="designer-note" value={section.note} multiline readOnly={readOnly} onChange={note => onSectionChange({ note })}>DESIGN NOTE · {section.note}</InlineText>}
-  </section>
-  if (section.type === 'text') {
-    const flowBoxes = boxes.filter(box => box.kind === 'content' || box.kind === 'text').slice().sort((a, b) => a.row - b.row || a.column - b.column)
-    return <section data-section-id={section.id} className={`page-section ${bgTone} type-text image-flow-section text-flow-section ${selected ? 'selected' : ''} ${section.hidden ? 'is-hidden' : ''}`} onClick={onSelect}>
-      {tools}<div className="section-type-tag">텍스트 흐름</div>
-      <div className="image-flow-list">{flowBoxes.map((box, order) => <article key={box.id} className={`image-flow-card image-flow-card-${box.kind} ${selected && activeBoxId === box.id ? 'active' : ''}`} onClick={event => { event.stopPropagation(); onSelectBox(box.id) }}>
-        <span className="image-flow-card-label">{box.kind === 'content' ? '기본 텍스트' : '텍스트'} {String(order + 1).padStart(2, '0')}</span>
-        {selected && activeBoxId === box.id && <div className="image-flow-card-actions" onClick={event => event.stopPropagation()}><button aria-label="카드 위로" disabled={order === 0} onClick={() => onMoveFlowBox(section.id, box.id, -1)}><ChevronUp/></button><button aria-label="카드 아래로" disabled={order === flowBoxes.length - 1} onClick={() => onMoveFlowBox(section.id, box.id, 1)}><ChevronDown/></button>{box.kind === 'text' && <button aria-label="카드 삭제" className="danger" onClick={() => onDeleteFlowBox(section.id, box.id)}><Trash2/></button>}</div>}
-        {box.kind === 'content' ? fullText : <CommonText value={{ eyebrow: box.eyebrow || '', title: box.title || '', body: box.text || '' }} readOnly={readOnly} onEditStart={() => onSelectBox(box.id)} onChange={patch => onBoxChange(box.id, { eyebrow: patch.eyebrow, title: patch.title, text: patch.body })}/>} 
-      </article>)}</div>
-      {selected && <div className="text-flow-canvas-add" onClick={event => event.stopPropagation()}><button onClick={() => onAddFlowBox(section.id, 'text')}><Plus/> 텍스트 추가</button></div>}
-      {section.note && <InlineText tag="div" className="designer-note" value={section.note} multiline readOnly={readOnly} onChange={note => onSectionChange({ note })}>DESIGN NOTE · {section.note}</InlineText>}
-    </section>
-  }
-  if (section.type === 'image') {
-    const flowBoxes = boxes.slice().sort((a, b) => a.row - b.row || a.column - b.column)
-    return <section data-section-id={section.id} className={`page-section ${bgTone} type-image image-flow-section ${selected ? 'selected' : ''} ${section.hidden ? 'is-hidden' : ''}`} onClick={onSelect}>
-      {tools}<div className="section-type-tag">이미지 흐름</div>
-      <div className="image-flow-list">{flowBoxes.map((box, order) => <article key={box.id} className={`image-flow-card image-flow-card-${box.kind} ${selected && activeBoxId === box.id ? 'active' : ''}`} onClick={event => { event.stopPropagation(); onSelectBox(box.id) }}>
-        <span className="image-flow-card-label">{box.kind === 'content' ? '기본 텍스트' : box.kind === 'media' ? '기본 이미지' : box.kind === 'text' ? '텍스트' : '이미지'} {String(order + 1).padStart(2, '0')}</span>
-        {selected && activeBoxId === box.id && <div className="image-flow-card-actions" onClick={event => event.stopPropagation()}><button aria-label="카드 위로" disabled={order === 0} onClick={() => onMoveFlowBox(section.id, box.id, -1)}><ChevronUp/></button><button aria-label="카드 아래로" disabled={order === flowBoxes.length - 1} onClick={() => onMoveFlowBox(section.id, box.id, 1)}><ChevronDown/></button><button aria-label="카드 삭제" className="danger" onClick={() => onDeleteFlowBox(section.id, box.id)}><Trash2/></button></div>}
-        {box.kind === 'content' ? fullText : box.kind === 'text' ? <CommonText className="flow-extra-copy" value={{ eyebrow: box.eyebrow || '', title: box.title || '', body: box.text || '' }} readOnly={readOnly} onEditStart={() => onSelectBox(box.id)} onChange={patch => onBoxChange(box.id, { eyebrow: patch.eyebrow, title: patch.title, text: patch.body })}/> : mediaFor(box)}
-      </article>)}</div>
-      {selected && <div className="image-flow-canvas-add" onClick={event => event.stopPropagation()}><button onClick={() => onAddFlowBox(section.id, 'text')}><Plus/> 텍스트 추가</button><button onClick={() => onAddFlowBox(section.id, 'image')}><ImageIcon/> 이미지 추가</button></div>}
-      {section.note && <InlineText tag="div" className="designer-note" value={section.note} multiline readOnly={readOnly} onChange={note => onSectionChange({ note })}>DESIGN NOTE · {section.note}</InlineText>}
-    </section>
-  }
-  return <section data-section-id={section.id} className={`page-section ${bgTone} type-${section.type} ${selected ? 'selected' : ''} ${section.hidden ? 'is-hidden' : ''}`} onClick={onSelect}>
-    {tools}
-    <div className="section-type-tag">{SECTION_LABELS[section.type]}</div><div className={`section-composition content-layout-${section.contentLayout || 'text-top'}`}>{fullText}{visibleMediaBox && mediaFor(visibleMediaBox)}</div>{selected && isItemPreset && <div className="preset-canvas-add" onClick={event => event.stopPropagation()}><button onClick={() => onAddItem(section.id)}><Plus/> {section.type === 'table' ? '행 추가' : section.type === 'icon-card' ? '카드 추가' : section.type === 'caption-grid' ? '이미지 2개 추가' : '항목 추가'}</button></div>}{section.note && <InlineText tag="div" className="designer-note" value={section.note} multiline readOnly={readOnly} onChange={note => onSectionChange({ note })}>DESIGN NOTE · {section.note}</InlineText>}
-  </section>
-}
-
-function Inspector({ project, selected, selectedBox, selectedItemIndex, selectedSpecialMediaIndex, commit, updateSection, onAddBox, onDeleteBox, onChangeBox, onChangeBoxLayer, onMoveImageFlowBox, onUpdateItem, onDeleteItem, onLayoutChange, onLayoutItemChange, onLayoutPreset }: { project: Project; selected?: Section; selectedBox?: BlockBox; selectedItemIndex: number | null; selectedSpecialMediaIndex: number | null; commit: (f: (p: Project) => void) => void; updateSection: (p: Partial<Section>) => void; onAddBox: (sectionId: string, kind: 'text' | 'image') => void; onDeleteBox: (sectionId: string, boxId: string) => void; onChangeBox: (sectionId: string, boxId: string, patch: Partial<BlockBox>) => void; onChangeBoxLayer: (sectionId: string, boxId: string, amount: number) => void; onMoveImageFlowBox: (sectionId: string, boxId: string, direction: -1 | 1) => void; onUpdateItem: (sectionId: string, index: number, value: string | string[] | Partial<IconCardItem>) => void; onDeleteItem: (sectionId: string, index: number) => void; onLayoutChange: (sectionId: string, layout: Section['mediaLayout']) => void; onLayoutItemChange: (sectionId: string, assetId: string, patch: Partial<MediaLayoutItem>) => void; onLayoutPreset: (sectionId: string, items: MediaLayoutItem[]) => void }) {
-  if (!selected) return <div className="inspector-body inspector-empty"><p>CANVAS</p><h2>블록을 선택하세요</h2><span>가운데 캔버스에서 편집할 블록을 선택하면 설정이 표시됩니다.</span></div>
-  const copy = BLOCK_EDITOR_COPY[selected.type]
-  const commonTextEditor = <CommonTextEditor value={{ eyebrow: selected.eyebrow, title: selected.title, body: selected.body }} lead={copy.lead} onChange={updateSection}/>
-  const backgroundPicker = <div className="bg-tone-picker"><span>배경 톤</span><div>{BACKGROUND_OPTIONS.map(option => <button key={option.value} type="button" className={(selected.background || 'white') === option.value ? 'active' : ''} onClick={() => updateSection({ background: option.value })}>{option.label}</button>)}</div></div>
-  if (selectedBox && (selectedBox.kind === 'media' || selectedBox.kind === 'image')) return <div className="inspector-body"><InspectorHeader eyebrow="IMAGE" title="선택 이미지 편집"/><BlockImageEditor section={selected} assets={project.assets} assetIds={selectedBox.assetIds || []} onLayout={mediaLayout => onLayoutChange(selected.id, mediaLayout)} onLayoutItemChange={(assetId, patch) => onLayoutItemChange(selected.id, assetId, patch)} onLayoutPreset={items => onLayoutPreset(selected.id, items)}/><section className="content-editor-group editor-note"><Field label="디자이너 메모"><textarea rows={2} placeholder="예: 이 이미지는 대표 컷으로 사용" value={selected.note} onChange={e => updateSection({ note: e.target.value })}/></Field></section></div>
-  const tableHeaders = selected.tableHeaders?.length ? selected.tableHeaders : ['구분', '내용']
-  const tableRows = selected.tableRows || []
-  const setTableColumns = (count: number) => updateSection({ tableHeaders: Array.from({ length: count }, (_, index) => tableHeaders[index] || (index === 0 ? '구분' : index === 1 ? '내용' : `항목 ${index + 1}`)), tableRows: tableRows.map(row => Array.from({ length: count }, (_, index) => row[index] || '')) })
-  const tableColumnsEditor = selected.type === 'table' ? <section className="content-editor-group"><h3>표 열 설정</h3><Field label="표 열"><select value={tableHeaders.length} onChange={e => setTableColumns(Number(e.target.value))}><option value={2}>2열 — 일정·조건·비교</option><option value={3}>3열 — 날짜·장소·내용</option><option value={4}>4열 — 시상표·객실비교</option><option value={5}>5열 — 확장 비교표</option></select></Field><div className="two-fields">{tableHeaders.map((header, index) => <Field key={index} label={`${index + 1}열 제목`}><input value={header} onChange={e => updateSection({ tableHeaders: tableHeaders.map((value, headerIndex) => headerIndex === index ? e.target.value : value) })}/></Field>)}</div></section> : null
-  if (selectedItemIndex !== null && ITEM_PRESET_TYPES.has(selected.type)) return <div className="inspector-body"><InspectorHeader eyebrow="SELECTED ITEM" title="선택 항목 편집"/>{commonTextEditor}{backgroundPicker}{(selected.type === 'list' || selected.type === 'caption-grid') && <label className="toggle list-style-toggle"><input type="checkbox" checked={selected.listStyle === 'offer'} onChange={event => updateSection({ listStyle: event.target.checked ? 'offer' : 'list' })}/><span/>{selected.type === 'caption-grid' ? '번호 배지 특전형(01~)' : '특전형 강조'}</label>}{tableColumnsEditor}<PresetItemEditor section={selected} index={selectedItemIndex} onChange={value => onUpdateItem(selected.id, selectedItemIndex, value)} onDelete={() => onDeleteItem(selected.id, selectedItemIndex)}/><section className="content-editor-group editor-note"><Field label="디자이너 메모"><textarea rows={3} placeholder="예: 첫 번째 이미지를 대표 컷으로, 제목은 2줄 이내" value={selected.note} onChange={event => updateSection({ note: event.target.value })}/></Field></section><p className="preset-editor-hint">아이콘 카드는 카드의 `⋮⋮` 핸들을 드래그해 순서를 바꿉니다. 복제는 가운데 캔버스의 선택 항목 도구에서 합니다.</p></div>
-  if (selected.type === 'image') return <div className="inspector-body"><InspectorHeader eyebrow="IMAGE FLOW" title={selectedBox ? '선택 카드 편집' : '이미지 블록 편집'}/>{backgroundPicker}{selectedBox && (selectedBox.kind === 'content' || selectedBox.kind === 'text') ? <FlowTextCardFields section={selected} box={selectedBox} onSectionChange={updateSection} onBoxChange={onChangeBox}/> : selectedBox ? <p className="image-flow-side-hint">이미지는 왼쪽 <b>이미지</b> 탭에서 이 카드에 연결하세요.</p> : <p className="image-flow-side-hint">가운데 캔버스에서 편집할 텍스트 또는 이미지 카드를 선택하세요.</p>}<section className="content-editor-group editor-note"><Field label="디자이너 메모"><textarea rows={2} placeholder="예: 이 이미지 아래에 안내문 추가" value={selected.note} onChange={e => updateSection({ note: e.target.value })}/></Field></section></div>
-  if (selected.type === 'text') return <div className="inspector-body"><InspectorHeader eyebrow="TEXT FLOW" title={selectedBox ? '선택 텍스트 카드 편집' : '텍스트 블록 편집'}/>{backgroundPicker}{selectedBox && (selectedBox.kind === 'content' || selectedBox.kind === 'text') ? <FlowTextCardFields section={selected} box={selectedBox} onSectionChange={updateSection} onBoxChange={onChangeBox}/> : <p className="image-flow-side-hint">가운데 캔버스에서 편집할 텍스트 카드를 선택하세요. 텍스트 추가는 블록 하단에서 할 수 있습니다.</p>}<section className="content-editor-group editor-note"><Field label="디자이너 메모"><textarea rows={2} placeholder="예: 이 문단 뒤에 안내 문구 추가" value={selected.note} onChange={e => updateSection({ note: e.target.value })}/></Field><label className="toggle"><input type="checkbox" checked={Boolean(selected.hidden)} onChange={e => updateSection({ hidden: e.target.checked })}/><span/>시안에서 숨기기</label></section></div>
-  // @ts-expect-error Legacy image-inspector branch retained for source compatibility; handled above.
-  if (selected.type === 'image' && selectedBox) return <div className="inspector-body"><InspectorHeader eyebrow="IMAGE FLOW" title="선택 카드 편집"/><ImageFlowEditor section={selected} selectedBox={selectedBox} onAdd={onAddBox} onChange={onChangeBox} onDelete={onDeleteBox} onMove={onMoveImageFlowBox}/><section className="content-editor-group editor-note"><Field label="디자이너 메모"><textarea rows={2} placeholder="예: 이 이미지 아래에 안내문 추가" value={selected.note} onChange={e => updateSection({ note: e.target.value })}/></Field></section></div>
-  // When an added flow card is active, keep the inspector focused on that card.
-  // The base section copy stays available only when the base text card is selected.
-  // @ts-expect-error Legacy image-inspector branch retained for source compatibility; handled above.
-  if (selected.type === 'image' && selectedBox && selectedBox.kind !== 'content') return <div className="inspector-body"><InspectorHeader eyebrow="IMAGE FLOW" title="선택 카드 편집"/><ImageFlowEditor section={selected} selectedBox={selectedBox} onAdd={onAddBox} onChange={onChangeBox} onDelete={onDeleteBox} onMove={onMoveImageFlowBox}/><section className="content-editor-group editor-note"><Field label="디자이너 메모"><textarea rows={2} placeholder="예: 이 이미지 아래에 안내문 추가" value={selected.note} onChange={e => updateSection({ note: e.target.value })}/></Field></section></div>
-  // @ts-expect-error Legacy image-inspector branch retained for source compatibility; handled above.
-  if (selected.type === 'image') return <div className="inspector-body"><InspectorHeader eyebrow="IMAGE FLOW" title="이미지 블록 편집"/><ImageFlowEditor section={selected} selectedBox={selectedBox} onAdd={onAddBox} onChange={onChangeBox} onDelete={onDeleteBox} onMove={onMoveImageFlowBox}/><section className="content-editor-group"><p>{copy.lead}</p><Field label={copy.eyebrow}><input placeholder={copy.eyebrowPlaceholder} value={selected.eyebrow} onChange={e => updateSection({ eyebrow: e.target.value })}/></Field><Field label={copy.title}><textarea rows={2} placeholder={copy.titlePlaceholder} value={selected.title} onChange={e => updateSection({ title: e.target.value })}/></Field><Field label={copy.body}><textarea rows={3} placeholder={copy.bodyPlaceholder} value={selected.body} onChange={e => updateSection({ body: e.target.value })}/></Field></section><section className="content-editor-group editor-note"><Field label="디자이너 메모"><textarea rows={3} placeholder="예: 이미지 다음에 시설 설명 추가" value={selected.note} onChange={e => updateSection({ note: e.target.value })}/></Field><label className="toggle"><input type="checkbox" checked={Boolean(selected.hidden)} onChange={e => updateSection({ hidden: e.target.checked })}/><span/>시안에서 숨기기</label></section></div>
-  if (selected.type === 'list' || selected.type === 'offer') return <div className="inspector-body"><InspectorHeader eyebrow={SECTION_LABELS[selected.type].toUpperCase()} title="목록 블록 편집"/>{backgroundPicker}<section className="content-editor-group"><p>{copy.lead}</p><Field label={copy.eyebrow}><input placeholder={copy.eyebrowPlaceholder} value={selected.eyebrow} onChange={e => updateSection({ eyebrow: e.target.value })}/></Field><Field label={copy.title}><textarea rows={2} placeholder={copy.titlePlaceholder} value={selected.title} onChange={e => updateSection({ title: e.target.value })}/></Field><Field label={copy.body}><textarea rows={3} placeholder={copy.bodyPlaceholder} value={selected.body} onChange={e => updateSection({ body: e.target.value })}/></Field></section>{selected.type === 'list' && <label className="toggle list-style-toggle"><input type="checkbox" checked={selected.listStyle === 'offer'} onChange={e => updateSection({ listStyle: e.target.checked ? 'offer' : 'list' })}/><span/>특전형 강조</label>}<p className="preset-editor-hint">항목은 가운데 캔버스에서 선택하거나 하단 버튼으로 추가합니다.</p><section className="content-editor-group editor-note"><Field label="디자이너 메모"><textarea rows={3} placeholder="예: 첫 번째 항목을 가장 강조" value={selected.note} onChange={e => updateSection({ note: e.target.value })}/></Field><label className="toggle"><input type="checkbox" checked={Boolean(selected.hidden)} onChange={e => updateSection({ hidden: e.target.checked })}/><span/>시안에서 숨기기</label></section></div>
-  return <div className="inspector-body"><InspectorHeader eyebrow={SECTION_LABELS[selected.type].toUpperCase()} title="블록 편집"/>{backgroundPicker}<section className="content-editor-group"><p>{copy.lead}</p><Field label={copy.eyebrow}><input placeholder={copy.eyebrowPlaceholder} value={selected.eyebrow} onChange={e => updateSection({ eyebrow: e.target.value })}/></Field><Field label={copy.title}><textarea rows={2} placeholder={copy.titlePlaceholder} value={selected.title} onChange={e => updateSection({ title: e.target.value })}/></Field><Field label={copy.body}><textarea rows={selected.type === 'timeline' ? 6 : 3} placeholder={copy.bodyPlaceholder} value={selected.body} onChange={e => updateSection({ body: e.target.value })}/></Field></section>{REFERENCE_LAYOUT_TYPES.has(selected.type) && <p className="preset-editor-hint">가운데 캔버스에서 항목 또는 이미지를 선택해 각각 편집합니다.</p>}{selected.type === 'table' ? <>{tableColumnsEditor}<p className="preset-editor-hint">행 내용은 가운데 캔버스에서 행을 선택해 단건으로 편집합니다.</p></> : selected.type === 'icon-card' ? <IconCardEditor cards={selected.iconCards || []} onChange={iconCards => updateSection({ iconCards })}/> : null}<section className="content-editor-group editor-note"><Field label="디자이너 메모"><textarea rows={3} placeholder="예: 첫 번째 이미지를 가장 크게, 제목은 2줄 이내" value={selected.note} onChange={e => updateSection({ note: e.target.value })}/></Field><label className="toggle"><input type="checkbox" checked={Boolean(selected.hidden)} onChange={e => updateSection({ hidden: e.target.checked })}/><span/>시안에서 숨기기</label></section>
-    {!REFERENCE_LAYOUT_TYPES.has(selected.type) && <BlockImageEditor section={selected} assets={project.assets} onLayout={mediaLayout => onLayoutChange(selected.id, mediaLayout)} onLayoutItemChange={(assetId, patch) => onLayoutItemChange(selected.id, assetId, patch)} onLayoutPreset={items => onLayoutPreset(selected.id, items)}/>} 
-  </div>
-}
-function ImageFlowEditor({ section, selectedBox, onAdd, onChange, onDelete, onMove }: { section: Section; selectedBox?: BlockBox; onAdd: (sectionId: string, kind: 'text' | 'image') => void; onChange: (sectionId: string, boxId: string, patch: Partial<BlockBox>) => void; onDelete: (sectionId: string, boxId: string) => void; onMove: (sectionId: string, boxId: string, direction: -1 | 1) => void }) {
-  const boxes = normalizeLayoutBoxes(section).slice().sort((a, b) => a.row - b.row || a.column - b.column)
-  const selectedIndex = selectedBox ? boxes.findIndex(box => box.id === selectedBox.id) : -1
-  const label = (box: BlockBox) => box.kind === 'content' ? '기본 텍스트' : box.kind === 'media' ? '기본 이미지' : box.kind === 'text' ? (box.title || '텍스트 카드') : '이미지 카드'
-  return <section className="image-flow-editor">
-    <div className="image-flow-editor-head"><p>CONTENT FLOW</p><h3>텍스트·이미지 순서</h3><small>카드를 캔버스에서 선택한 뒤 위·아래 버튼으로 순서를 바꿉니다. 기본 텍스트와 기본 이미지는 삭제되지 않아 언제든 다시 구성할 수 있습니다.</small></div>
-    <div className="image-flow-add"><button onClick={() => onAdd(section.id, 'text')}><Plus/> 텍스트 추가</button><button onClick={() => onAdd(section.id, 'image')}><ImageIcon/> 이미지 추가</button></div>
-    <ol className="image-flow-order">{boxes.map((box, index) => <li key={box.id} className={selectedBox?.id === box.id ? 'active' : ''}><span>{String(index + 1).padStart(2, '0')}</span><b>{label(box)}</b><i>{box.kind === 'content' || box.kind === 'text' ? '텍스트' : '이미지'}</i></li>)}</ol>
-    {selectedBox ? <div className="image-flow-selected"><div className="image-flow-selected-head"><b>{label(selectedBox)}</b><span>{selectedIndex + 1} / {boxes.length}</span></div><div className="image-flow-actions"><button disabled={selectedIndex <= 0} onClick={() => onMove(section.id, selectedBox.id, -1)}><ChevronUp/> 위로</button><button disabled={selectedIndex < 0 || selectedIndex >= boxes.length - 1} onClick={() => onMove(section.id, selectedBox.id, 1)}><ChevronDown/> 아래로</button>{selectedBox.kind !== 'content' && selectedBox.kind !== 'media' && <button className="danger" onClick={() => onDelete(section.id, selectedBox.id)}><Trash2/> 삭제</button>}</div>{selectedBox.kind === 'text' && <div className="image-flow-text-fields"><Field label="상단 분류"><input placeholder="예: HOTEL FACILITY" value={selectedBox.eyebrow || ''} onChange={event => onChange(section.id, selectedBox.id, { eyebrow: event.target.value })}/></Field><Field label="제목"><input placeholder="텍스트 카드 제목" value={selectedBox.title || ''} onChange={event => onChange(section.id, selectedBox.id, { title: event.target.value })}/></Field><Field label="본문"><textarea rows={4} placeholder="설명 문장을 입력하세요." value={selectedBox.text || ''} onChange={event => onChange(section.id, selectedBox.id, { text: event.target.value })}/></Field></div>}{(selectedBox.kind === 'media' || selectedBox.kind === 'image') && <p className="image-flow-image-help">왼쪽 <b>이미지</b> 탭에서 이 카드에 이미지를 연결하세요. 한 장이면 대표 이미지로, 여러 장이면 이미지 내부 레이아웃으로 표시됩니다.</p>}</div> : <p className="image-flow-empty">캔버스에서 편집할 텍스트 또는 이미지 카드를 선택하세요.</p>}
-  </section>
-}
-
-function FlowTextCardFields({ section, box, onSectionChange, onBoxChange }: { section: Section; box: BlockBox; onSectionChange: (patch: Partial<Section>) => void; onBoxChange: (sectionId: string, boxId: string, patch: Partial<BlockBox>) => void }) {
-  const base = box.kind === 'content'
-  const value = base ? { eyebrow: section.eyebrow, title: section.title, body: section.body } : { eyebrow: box.eyebrow || '', title: box.title || '', body: box.text || '' }
-  const update = (patch: Partial<CommonTextValue>) => base ? onSectionChange(patch) : onBoxChange(section.id, box.id, { eyebrow: patch.eyebrow, title: patch.title, text: patch.body })
-  return <CommonTextEditor value={value} onChange={update} bodyRows={4}/>
-}
-function CommonTextEditor({ value, onChange, lead, bodyRows = 3 }: { value: CommonTextValue; onChange: (patch: Partial<CommonTextValue>) => void; lead?: string; bodyRows?: number }) {
-  return <section className="content-editor-group common-text-editor"><h3>공통 텍스트</h3>{lead && <p>{lead}</p>}<Field label="Category Label"><input placeholder="Category Label" value={value.eyebrow} onFocus={event => event.currentTarget.select()} onChange={event => onChange({ eyebrow: event.target.value })}/></Field><RichTextEditor label="제목" value={value.title} rows={2} onChange={title => onChange({ title })}/><RichTextEditor label="본문" value={value.body} rows={bodyRows} onChange={body => onChange({ body })}/></section>
-}
-
-function BlockImageEditor({ section, assets, assetIds, onLayout, onLayoutItemChange, onLayoutPreset }: { section: Section; assets: MediaAsset[]; assetIds?: string[]; onLayout: (layout: Section['mediaLayout']) => void; onLayoutItemChange: (assetId: string, patch: Partial<MediaLayoutItem>) => void; onLayoutPreset: (items: MediaLayoutItem[]) => void }) {
-  const [orientations, setOrientations] = useState<Record<string, ImageOrientation>>({})
-  const activeMediaIds = assetIds || section.mediaIds
-  const connected = activeMediaIds.map(id => assets.find(asset => asset.id === id)).filter(Boolean) as MediaAsset[]
-  const showMosaicLayout = connected.length >= 3
-  const customItems = normalizeCustomLayout(activeMediaIds, section.mediaLayoutItems)
-  const imageSignature = connected.map(asset => `${asset.id}:${asset.src}`).join('|')
-  useEffect(() => { let active = true; connected.forEach(asset => { const image = new Image(); image.onload = () => { if (!active) return; const orientation: ImageOrientation = Math.abs(image.naturalWidth - image.naturalHeight) < Math.min(image.naturalWidth, image.naturalHeight) * .12 ? 'square' : image.naturalHeight > image.naturalWidth ? 'portrait' : 'landscape'; setOrientations(current => current[asset.id] === orientation ? current : { ...current, [asset.id]: orientation }) }; image.src = asset.src }); return () => { active = false } }, [imageSignature])
-  const recommendedPresets = layoutPresetsFor(activeMediaIds, orientations)
-  if (!connected.length) return <p className="block-image-empty">왼쪽 <b>이미지</b> 탭에서 파일 또는 URL 이미지를 추가하세요.</p>
-  return <section className="block-image-editor">
-    <div className="block-image-editor-head"><div><b>이미지 내부 레이아웃</b><small>이미지 추가·제거는 왼쪽 이미지 라이브러리에서 합니다. 연결된 이미지의 배열과 크롭만 조절합니다.</small></div></div>
-    {connected.length > 0 && <div className="image-layout-picker"><span>이미지 레이아웃</span><div>{([['auto','자동'],['stack','1열'],['grid-2','2단'],['grid-3','3단'],['custom','직접 편집']] as const).map(([layout, label]) => <button key={layout} className={section.mediaLayout === layout ? 'active' : ''} onClick={() => onLayout(layout)}>{label}</button>)}</div>{showMosaicLayout && <div className="image-layout-emphasis">{([['mosaic-left','강조 왼쪽'],['mosaic-right','강조 오른쪽'],['equal','균등형']] as const).map(([layout, label]) => <button key={layout} className={section.mediaLayout === layout ? 'active' : ''} onClick={() => onLayout(layout)}>{label}</button>)}</div>}</div>}
-    {recommendedPresets.length > 0 && <div className="ratio-layout-presets"><div><b>비율 추천</b><small>세로·가로 이미지 조합을 읽어 3장 이상일 때만 제안합니다.</small></div><div className="ratio-preset-list">{recommendedPresets.map(preset => <button key={preset.id} onClick={() => onLayoutPreset(preset.items)}><span className="ratio-preset-preview">{preset.items.slice(0, 4).map(item => <i key={item.assetId} style={{ gridColumn: `${item.column} / span ${item.columnSpan}`, gridRow: `${item.row} / span ${item.rowSpan}` }}/>)}</span><span><b>{preset.label}</b><small>{preset.detail}</small></span></button>)}</div></div>}
-    {section.mediaLayout === 'custom' && connected.length > 0 && <div className="custom-layout-editor"><div className="custom-layout-heading"><b>직접 배치</b><small>칸 수·높이·크롭을 조절하면 캔버스에 즉시 반영됩니다.</small></div>{connected.map((asset, index) => { const entry = customItems.find(item => item.assetId === asset.id)!; return <article key={asset.id} className="custom-layout-card"><img src={asset.src} alt=""/><div className="custom-layout-name"><b>{index + 1}</b><span>{asset.name}</span></div><div className="custom-layout-controls"><label>가로<select aria-label={`${asset.name} 가로 크기`} value={entry.columnSpan} onChange={event => onLayoutItemChange(asset.id, { columnSpan: Number(event.target.value) })}>{[3,4,5,6,7,8,9,12].map(value => <option key={value} value={value}>{value}/12</option>)}</select></label><label>세로<select aria-label={`${asset.name} 세로 크기`} value={entry.rowSpan} onChange={event => onLayoutItemChange(asset.id, { rowSpan: Number(event.target.value) })}>{[1,2,3,4,5,6].map(value => <option key={value} value={value}>{value}칸</option>)}</select></label><label>크롭<select aria-label={`${asset.name} 크롭 위치`} value={entry.focus} onChange={event => onLayoutItemChange(asset.id, { focus: event.target.value as ImageFocus })}>{FOCUS_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label></div><div className="custom-layout-move"><span>위치</span><button aria-label={`${asset.name} 위로`} onClick={() => onLayoutItemChange(asset.id, { row: entry.row - 1 })}>↑</button><button aria-label={`${asset.name} 왼쪽`} onClick={() => onLayoutItemChange(asset.id, { column: entry.column - 1 })}>←</button><button aria-label={`${asset.name} 오른쪽`} onClick={() => onLayoutItemChange(asset.id, { column: entry.column + 1 })}>→</button><button aria-label={`${asset.name} 아래로`} onClick={() => onLayoutItemChange(asset.id, { row: entry.row + 1 })}>↓</button></div></article> })}</div>}
-  </section>
-}
-function ReferenceImageEditor({ section, assets, mediaIndex, onFocusChange }: { section: Section; assets: MediaAsset[]; mediaIndex: number; onFocusChange: (assetId: string, focus: ImageFocus) => void }) {
-  const assetId = section.mediaIds[mediaIndex] || ''
-  const asset = assets.find(item => item.id === assetId)
-  const label = section.type === 'timeline' ? mediaIndex === 0 ? '대표 이미지' : `일정 이미지 ${mediaIndex}` : section.type === 'hero-cover' ? '커버 배경 이미지' : section.type === 'route-bar' ? '동선 지도 이미지' : section.type === 'option-grid' ? `선택 옵션 이미지 ${mediaIndex + 1}` : section.type === 'vs-compare' ? `비교 카드 이미지 ${mediaIndex + 1}` : section.type === 'menu-zigzag' ? `추천 이미지 ${mediaIndex + 1}` : section.type === 'caption-grid' ? `카드 이미지 ${mediaIndex + 1}` : `이미지 ${mediaIndex + 1}`
-  const source = asset ? (asset.src.startsWith('http') ? asset.src : asset.name) : ''
-  const focus = asset ? section.mediaLayoutItems?.find(item => item.assetId === asset.id)?.focus || 'center center' : 'center center'
-  return <section className="reference-image-editor"><p className="preset-item-kicker">{label}</p><section className="reference-layout-setting"><b>이미지 레이아웃</b><span>레퍼런스 프리셋의 이미지 위치와 크기는 고정됩니다.</span>{asset && <label><span>크롭 위치</span><select value={focus} onChange={event => onFocusChange(asset.id, event.target.value as ImageFocus)}>{FOCUS_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}</section>{asset ? <><img src={asset.src} alt={asset.alt || asset.name} style={{ objectPosition: focus }}/><label><span>연결 이미지</span><input value={source} readOnly onFocus={event => event.currentTarget.select()}/></label></> : <div className="reference-image-empty"><ImageIcon/><b>아직 연결된 이미지가 없습니다.</b><span>왼쪽 이미지 탭에서 파일을 올리거나 URL을 추가한 뒤 선택하세요.</span></div>}</section>
-}
-function PresetItemEditor({ section, index, onChange, onDelete }: { section: Section; index: number; onChange: (value: string | string[] | Partial<IconCardItem>) => void; onDelete: () => void }) {
-  if (section.type === 'table') {
-    const headers = section.tableHeaders?.length ? section.tableHeaders : ['구분', '내용']
-    const row = headers.map((_, column) => section.tableRows?.[index]?.[column] || '')
-    return <section className="preset-item-editor"><p className="preset-item-kicker">표 행 {index + 1}</p>{headers.map((header, column) => <Field key={column} label={header}><input value={row[column]} onChange={event => onChange(row.map((cell, cellIndex) => cellIndex === column ? event.target.value : cell))}/></Field>)}</section>
-  }
-  if (section.type === 'icon-card') { const card = section.iconCards?.[index]; if (!card) return null; return <section className="preset-item-editor"><p className="preset-item-kicker">아이콘 카드 {index + 1}</p><div className="two-fields"><Field label="아이콘"><select value={card.icon} onChange={event => onChange({ icon: event.target.value })}>{ICON_CARD_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field><Field label="강조색"><select value={card.tone} onChange={event => onChange({ tone: event.target.value as IconCardItem['tone'] })}><option value="teal">청록</option><option value="orange">주황</option><option value="green">초록</option></select></Field></div><Field label="카드 제목"><input value={card.title} onChange={event => onChange({ title: event.target.value })}/></Field><Field label="카드 설명"><textarea rows={4} value={card.body} onChange={event => onChange({ body: event.target.value })}/></Field><button className="preset-item-delete-button" onClick={onDelete}><Trash2/> 카드 삭제</button></section> }
-  const value = section.items[index] || ''
-  if (section.type === 'menu-zigzag') { const item = splitPair(value); const update = (title: string, body: string) => onChange(joinPair(title, body)); return <section className="preset-item-editor"><p className="preset-item-kicker">추천 항목 {index + 1}</p><Field label="제목"><input value={item.title} onChange={event => update(event.target.value, item.body)}/></Field><Field label="본문"><textarea rows={5} value={item.body} onChange={event => update(item.title, event.target.value)}/></Field></section> }
-  if (section.type === 'timeline') { const item = splitTimeline(value); const update = (time: string, title: string, body: string) => onChange(joinTimeline(time, title, body)); return <section className="preset-item-editor"><p className="preset-item-kicker">일정 항목 {index + 1}</p><Field label="시간"><input value={item.time} onChange={event => update(event.target.value, item.title, item.body)}/></Field><Field label="제목"><input value={item.title} onChange={event => update(item.time, event.target.value, item.body)}/></Field><Field label="설명"><textarea rows={5} value={item.body} onChange={event => update(item.time, item.title, event.target.value)}/></Field></section> }
-  if (section.type === 'caption-grid') { const item = splitPair(value); const update = (title: string, body: string) => onChange(joinPair(title, body)); return <section className="preset-item-editor"><p className="preset-item-kicker">장소 정보 {index + 1}</p><Field label="제목"><input value={item.title} onChange={event => update(event.target.value, item.body)}/></Field><Field label="설명"><textarea rows={4} value={item.body} onChange={event => update(item.title, event.target.value)}/></Field></section> }
-  if (section.type === 'vs-compare') { const item = splitTimeline(value); const update = (tag: string, title: string, body: string) => onChange(joinTimeline(tag, title, body)); return <section className="preset-item-editor"><p className="preset-item-kicker">비교 카드 {index + 1}</p><Field label="상단 키워드"><input value={item.time} onChange={event => update(event.target.value, item.title, item.body)}/></Field><Field label="카드 제목"><input value={item.title} onChange={event => update(item.time, event.target.value, item.body)}/></Field><Field label="설명"><textarea rows={4} value={item.body} onChange={event => update(item.time, item.title, event.target.value)}/></Field></section> }
-  if (section.type === 'service-bar') { const item = splitPair(value); const update = (desc: string, key: string) => onChange(joinPair(desc, key)); return <section className="preset-item-editor"><p className="preset-item-kicker">서비스 항목 {index + 1}</p><Field label="좌측 설명"><textarea rows={3} value={item.title} onChange={event => update(event.target.value, item.body)}/></Field><Field label="우측 핵심 키워드"><input value={item.body} onChange={event => update(item.title, event.target.value)}/></Field></section> }
-  if (section.type === 'hero-cover' || section.type === 'route-bar' || section.type === 'option-grid') { const kind = section.type === 'hero-cover' ? '강조 뱃지' : section.type === 'route-bar' ? '경유지' : '선택 옵션'; return <section className="preset-item-editor"><p className="preset-item-kicker">{kind} {index + 1}</p><Field label={kind}><input value={value} onChange={event => onChange(event.target.value)}/></Field></section> }
-  const label = section.type === 'offer' ? '특전 또는 조건' : '핵심 내용'
-  return <section className="preset-item-editor"><p className="preset-item-kicker">{label} {index + 1}</p><Field label={label}><textarea rows={4} value={value} onChange={event => onChange(event.target.value)}/></Field></section>
-}
-function InspectorHeader({ eyebrow, title }: { eyebrow: string; title: string }) { return <div className="inspector-heading"><p>{eyebrow}</p><h2>{title}</h2></div> }
-function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="field"><span>{label}</span>{children}</label> }
-function IconCardEditor({ cards, onChange }: { cards: IconCardItem[]; onChange: (cards: IconCardItem[]) => void }) {
-  const update = (id: string, patch: Partial<IconCardItem>) => onChange(cards.map(card => card.id === id ? { ...card, ...patch } : card))
-  const add = () => onChange([...cards, { id: crypto.randomUUID(), icon: 'sparkles', title: '새 카드 제목', body: '짧은 설명을 입력하세요.', tone: 'teal' }])
-  return <section className="icon-card-editor"><p className="binding-note">카드마다 아이콘·제목·설명·강조색을 편집합니다. 2장은 2열, 3장 이상은 3열로 표시됩니다.</p>{cards.map((card, index) => <article key={card.id}><header><b>카드 {index + 1}</b><button aria-label={`카드 ${index + 1} 삭제`} onClick={() => onChange(cards.filter(item => item.id !== card.id))}><X/></button></header><div className="two-fields"><Field label="아이콘"><select value={card.icon} onChange={event => update(card.id, { icon: event.target.value })}>{ICON_CARD_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field><Field label="강조색"><select value={card.tone} onChange={event => update(card.id, { tone: event.target.value as IconCardItem['tone'] })}><option value="teal">청록</option><option value="orange">주황</option><option value="green">초록</option></select></Field></div><Field label="카드 제목"><input value={card.title} onChange={event => update(card.id, { title: event.target.value })}/></Field><Field label="카드 설명"><textarea rows={2} value={card.body} onChange={event => update(card.id, { body: event.target.value })}/></Field></article>)}<button className="add-row" onClick={add}><Plus/> 카드 추가</button></section>
-}
-function FileMenu({ hasLinkedFile, onImport, onSave, onSaveAs, onClose }: { hasLinkedFile: boolean; onImport: () => void; onSave: () => void; onSaveAs: () => void; onClose: () => void }) { return <div className="file-menu"><button onClick={onImport}><Upload/><span><b>불러오기</b><small>로드용 JSON 또는 YAML 파일 열기</small></span></button><hr/><button onClick={onSave}><Save/><span><b>저장</b><small>{hasLinkedFile ? '연결된 JSON 파일에 바로 덮어쓰기' : 'JSON 파일 위치를 선택해 저장'}</small></span></button><button onClick={onSaveAs}><FileJson/><span><b>다른 이름으로 저장</b><small>새 JSON 파일을 만들고 자동 저장 연결</small></span></button><hr/><button className="file-menu-close" onClick={onClose}><LogOut/><span><b>종료</b><small>저장 여부를 확인한 뒤 종료</small></span></button></div> }
+function FileMenu({ hasLinkedFile, onImport, onSave, onSaveAs, onClose }: { hasLinkedFile: boolean; onImport: () => void; onSave: () => void; onSaveAs: () => void; onClose: () => void }) { return <div className="file-menu"><button onClick={onImport}><Upload/><span><b>불러오기</b><small>로드용 JSON 또는 YAML 파일 열기</small></span></button><hr/><button onClick={onSave}><Save/><span><b>저장</b><small>{hasLinkedFile ? '연결된 JSON 파일에 바로 덮어쓰기' : 'JSON 파일 위치를 선택해 저장'}</small></span></button><button onClick={onSaveAs}><FileJson/><span><b>다른 이름으로 저장</b><small>새 JSON 파일을 만들고 자동 저장 연결</small></span></button><hr/><button className="file-menu-close" onClick={onClose}><LogOut/><span><b>종료 (Ctrl+Q)</b><small>저장 여부를 확인한 뒤 종료</small></span></button></div> }
 function ExportMenu({ onExport, disabled }: { onExport: (kind: string) => void; disabled?: boolean }) { return <div className="export-menu"><button disabled={disabled} onClick={() => onExport('html')}><Eye/><span><b>독립 HTML</b><small>이미지 URL을 유지한 단일 HTML 파일</small></span></button><button disabled={disabled} onClick={() => onExport('load-json')}><FileJson/><span><b>로드용 JSON 파일</b><small>스튜디오에서 다시 불러올 수 있는 원본</small></span></button><button disabled={disabled} onClick={() => onExport('zip')}><Archive/><span><b>디자이너 전달 ZIP</b><small>index.html · assets 이미지 · 로드용 JSON</small></span></button></div> }
 
 function ZipProgressModal({ progress }: { progress: ZipExportProgress }) {
@@ -1293,9 +897,5 @@ function ZipProgressModal({ progress }: { progress: ZipExportProgress }) {
 
 function PreviewModal({ project, onClose }: { project: Project; onClose: () => void }) {
   return <div className="modal-backdrop preview-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}><section className="preview-modal" role="dialog" aria-modal="true" aria-labelledby="preview-title"><header><div><p>FULL PAGE PREVIEW</p><h2 id="preview-title">{project.name}</h2></div><button aria-label="미리보기 닫기" onClick={onClose}><X/></button></header><div className="preview-modal-body"><iframe title={`${project.name} 전체 미리보기`} srcDoc={standaloneHtml(project)}/></div></section></div>
-}
-
-function ProjectBoard({ projects, activeId, onClose, onNew, onOpen, onDuplicate, onDelete }: { projects: Project[]; activeId: string; onClose: () => void; onNew: () => void; onOpen: (project: Project) => void; onDuplicate: (project: Project) => void; onDelete: (id: string) => void }) {
-  return <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}><section className="project-board" role="dialog" aria-modal="true" aria-labelledby="project-board-title"><header><div><p>PROJECT LIBRARY</p><h2 id="project-board-title">기획전 프로젝트</h2></div><button aria-label="닫기" onClick={onClose}><X/></button></header><div className="project-board-actions"><p>작업은 이 PC의 브라우저에 자동 저장됩니다.</p><button className="primary-button" onClick={onNew}><Plus/> 새 프로젝트</button></div><div className="project-list">{projects.slice().sort((a,b) => b.updatedAt.localeCompare(a.updatedAt)).map(item => <article key={item.id} className={item.id === activeId ? 'active' : ''}><button className="project-open" onClick={() => onOpen(item)}><span className="project-thumb"><FileText/></span><span><strong>{item.name}</strong><small>{item.category} · {item.sections.length}개 블록 · {new Date(item.updatedAt).toLocaleDateString('ko-KR')}</small></span>{item.id === activeId && <i>편집 중</i>}</button><div><button title="복제" onClick={() => onDuplicate(item)}><Copy/></button><button title="삭제" onClick={() => onDelete(item.id)}><Trash2/></button></div></article>)}</div></section></div>
 }
 

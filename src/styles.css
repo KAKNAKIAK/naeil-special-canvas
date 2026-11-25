@@ -222,3 +222,13 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .service-bar-row>b{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:#07858b;color:#fff;font-size:11px;flex:none}
 .service-bar-desc{flex:1;font-size:13px;color:#222c2f;white-space:pre-wrap}
 .service-bar-key{font-size:13px;font-weight:800;color:#07858b;white-space:nowrap}
+
+/* Layer drag-and-drop reorder */
+.layer-row[draggable="true"] .layer-main{cursor:grab}
+.layer-row[draggable="true"] .layer-main:active{cursor:grabbing}
+.content-group-drag{display:grid;place-items:center;width:18px;height:20px;color:#5a7b7d;cursor:grab;flex:none}
+.content-group-drag:active{cursor:grabbing}
+.content-group-drag svg{width:13px}
+.layer-row.is-dragging,.content-group.is-dragging{opacity:.42}
+.layer-row.drop-before,.content-group.drop-before{box-shadow:inset 0 2px 0 0 var(--teal)}
+.layer-row.drop-after,.content-group.drop-after{box-shadow:inset 0 -2px 0 0 var(--teal)}
