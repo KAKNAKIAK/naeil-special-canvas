@@ -34,7 +34,7 @@ export async function loadWorkspace(): Promise<WorkspaceState | undefined> {
   const workspace = await get<WorkspaceState>(WORKSPACE_KEY)
   if (workspace?.projects?.length) {
     const results = workspace.projects.map(project => migrateProject(project))
-    await Promise.all(results.map(saveMigrationBackup))
+    for (const result of results) await saveMigrationBackup(result)
     return { activeId: workspace.activeId, projects: results.map(result => normalizeProject(result.project)), projectFiles: workspace.projectFiles || {} }
   }
   const legacy = await get<Project>(LEGACY_KEY)

@@ -2,7 +2,7 @@ import { createCampaignData, makeSection, normalizeLayoutBoxes } from './catalog
 import { CURRENT_CATALOG_VERSION, CURRENT_SCHEMA_VERSION } from './migrations'
 import type { BriefCompositionStrategy, BriefFact, BriefWorkspace, CanvasBrief, CanvasBriefBlock, GeneratableSectionType, Project, Section } from './types'
 
-const GENERATABLE_TYPES = new Set<GeneratableSectionType>(['text', 'image', 'list', 'table', 'icon-card', 'menu-zigzag', 'timeline'])
+const GENERATABLE_TYPES = new Set<GeneratableSectionType>(['text', 'image', 'list', 'table', 'icon-card', 'menu-zigzag', 'timeline', 'hero-cover', 'route-bar', 'option-grid', 'vs-compare', 'service-bar'])
 const CATEGORY_LABEL: Record<Project['category'], string> = { 금까기: 'NAEIL GOLD', 우리만: 'NAEIL PRIVATE', 특별한: 'NAEIL SPECIAL', 골프: 'NAEIL GOLF' }
 const CATEGORY_AUDIENCE: Record<Project['category'], string> = { 금까기: '자유롭지만 핵심 구성을 놓치고 싶지 않은 여행자', 우리만: '일행만의 여정을 원하는 소규모 고객', 특별한: '테마와 경험을 중심으로 여행을 고르는 고객', 골프: '라운드와 휴식을 함께 계획하는 골프 여행객' }
 
@@ -141,6 +141,11 @@ function blockFor(type: GeneratableSectionType, common: CanvasBrief['common'], i
     const cards = (signals.confirmed.length ? signals.confirmed : [{ field: '확인 포인트', value: '상품 정보를 추가하세요.' }]).slice(0, 6).map((fact, index) => ({ id: `brief-card-${index + 1}`, icon: index % 3 === 0 ? 'calendar' : index % 3 === 1 ? 'hotel' : 'car', title: fact.field, body: fact.value, tone: index % 3 === 0 ? 'teal' as const : index % 3 === 1 ? 'orange' as const : 'green' as const }))
     return { type, categoryLabel: common.categoryLabel, title: '선택 이유', body: '핵심 조건을 카드로 나눠 확인하세요.', iconCards: cards }
   }
+  if (type === 'hero-cover') return { type, ...common, items: factItems.slice(0, 3), mediaIds: imageIds.slice(0, 1) }
+  if (type === 'route-bar') return { type, categoryLabel: common.categoryLabel, title: '한눈에 보는 황금 동선', body: '주요 방문 도시 흐름입니다.', items: ['출발 도시', '핵심 경유지', '도착 도시'], mediaIds: imageIds.slice(0, 1) }
+  if (type === 'option-grid') return { type, categoryLabel: common.categoryLabel, title: '선택 프로그램 택 1', body: '원하는 체험을 선택하세요.', items: factItems.length ? factItems.slice(0, 8) : ['선택 체험 1', '선택 체험 2'], mediaIds: imageIds.slice(0, 8) }
+  if (type === 'vs-compare') return { type, categoryLabel: common.categoryLabel, title: '구성 비교', body: '두 가지 옵션을 비교해 보세요.', items: ['옵션 A | 첫 번째 구성 | 핵심 장점을 입력하세요.', '옵션 B | 두 번째 구성 | 핵심 장점을 입력하세요.'], mediaIds: imageIds.slice(0, 2) }
+  if (type === 'service-bar') return { type, categoryLabel: common.categoryLabel, title: '스페셜 서비스', body: '기본 제공 혜택입니다.', items: factItems.length ? factItems.map(item => `${item} | 핵심 혜택`) : ['맞춤 일정 설계 | 개별 케어'] }
   const pairs = visualItems.slice(0, Math.max(1, Math.min(imageIds.length || 1, 4))).map(titleAndBody)
   return { type, categoryLabel: common.categoryLabel, title: '공간과 경험', body: '이미지와 연결할 설명을 원본 자료에서 골랐습니다.', items: pairs.length ? pairs.map(pair => `${pair.title} | ${pair.body}`) : ['제목 | 원본 자료의 설명을 입력하세요.'], mediaIds: imageIds.slice(0, Math.max(1, pairs.length)), menuItemReversed: pairs.map((_, index) => index % 2 === 1) }
 }

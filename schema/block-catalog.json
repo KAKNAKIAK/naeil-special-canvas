@@ -77,6 +77,46 @@
       "requiredFields": ["eyebrow", "title", "body", "items", "mediaIds"],
       "itemRule": { "minimum": 2, "maximum": 2 },
       "imageSlots": "side-by-side"
+    },
+    {
+      "type": "hero-cover",
+      "label": "커버 히어로",
+      "generatable": true,
+      "requiredFields": ["eyebrow", "title", "body", "items", "mediaIds"],
+      "itemRule": { "minimum": 0, "maximum": 6 },
+      "imageSlots": 1
+    },
+    {
+      "type": "route-bar",
+      "label": "가로 동선 바",
+      "generatable": true,
+      "requiredFields": ["eyebrow", "title", "body", "items", "mediaIds"],
+      "itemRule": { "minimum": 2, "maximum": 12 },
+      "imageSlots": 1
+    },
+    {
+      "type": "option-grid",
+      "label": "원형 택1 그리드",
+      "generatable": true,
+      "requiredFields": ["eyebrow", "title", "body", "items", "mediaIds"],
+      "itemRule": { "minimum": 2, "maximum": 12 },
+      "imageSlots": "per-item"
+    },
+    {
+      "type": "vs-compare",
+      "label": "VS 비교 카드",
+      "generatable": true,
+      "requiredFields": ["eyebrow", "title", "body", "items", "mediaIds"],
+      "itemRule": { "minimum": 2, "maximum": 2 },
+      "imageSlots": "per-item"
+    },
+    {
+      "type": "service-bar",
+      "label": "2단 서비스 바",
+      "generatable": true,
+      "requiredFields": ["eyebrow", "title", "body", "items"],
+      "itemRule": { "minimum": 1, "maximum": 12 },
+      "imageSlots": 0
     }
   ]
 }

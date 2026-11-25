@@ -45,7 +45,7 @@
       "required": ["id", "type", "eyebrow", "title", "body", "items", "mediaIds", "mediaLayout", "contentLayout"],
       "properties": {
         "id": { "type": "string" },
-        "type": { "type": "string", "enum": ["text", "image", "list", "table", "icon-card", "timeline", "menu-zigzag", "offer", "caption-grid"] },
+        "type": { "type": "string", "enum": ["text", "image", "list", "table", "icon-card", "timeline", "menu-zigzag", "offer", "caption-grid", "hero-cover", "route-bar", "option-grid", "vs-compare", "service-bar"] },
         "eyebrow": { "type": "string" },
         "title": { "type": "string" },
         "body": { "type": "string" },

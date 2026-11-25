@@ -1,13 +1,13 @@
 {
-  "canvasAppVersion": "1.0.31",
+  "canvasAppVersion": "1.0.32",
   "schemaVersion": "2.1.0",
   "catalogVersion": "1.0.0",
-  "contractHash": "567241ed20f739d39cefa3fe566b37db613db185f5553b9c545cd71e98c117d3",
+  "contractHash": "de322bc901167b61f83e5e88cb31c8eb9c01791d3facc489af887b93dc4b34c5",
   "contractFiles": [
     "project.schema.json",
     "approved-brief.schema.json",
     "schema-version.json",
     "block-catalog.json"
   ],
-  "syncedAt": "2026-07-31T09:04:39.095Z"
+  "syncedAt": "2026-11-25T07:23:50.243Z"
 }

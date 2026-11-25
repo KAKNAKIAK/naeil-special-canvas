@@ -183,7 +183,11 @@ function createWindow() {
   }
   ipcMain.on('naeil-special:save-before-close-complete', saveBeforeCloseComplete)
   window.on('close', event => {
-    if (allowClose || waitingForSave || isInstallingUpdate) return
+    if (allowClose || isInstallingUpdate) return
+    if (waitingForSave) {
+      event.preventDefault()
+      return
+    }
     event.preventDefault()
     const answer = dialog.showMessageBoxSync(window, {
       type: 'question',
@@ -198,6 +202,8 @@ function createWindow() {
     if (answer === 3) return
     if (answer === 2) { allowClose = true; window.close(); return }
     waitingForSave = true
+    clearTimeout(saveTimeout)
+    saveTimeout = setTimeout(() => { waitingForSave = false }, 15_000)
     window.webContents.send('naeil-special:save-before-close', answer === 1 ? 'save-as' : 'save')
   })
   window.on('closed', () => {

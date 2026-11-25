@@ -59,7 +59,7 @@ export interface CampaignData {
   performance: { image_warning_bytes: number; image_max_bytes: number; eager_image_budget_bytes: number; image_exceptions: string[] }
 }
 
-export type SectionType = 'text' | 'image' | 'list' | 'table' | 'icon-card' | 'offer' | 'caption-grid' | 'menu-zigzag' | 'timeline'
+export type SectionType = 'text' | 'image' | 'list' | 'table' | 'icon-card' | 'offer' | 'caption-grid' | 'menu-zigzag' | 'timeline' | 'hero-cover' | 'route-bar' | 'option-grid' | 'vs-compare' | 'service-bar'
 export type GeneratableSectionType = Exclude<SectionType, 'offer' | 'caption-grid'>
 export type BriefCompositionStrategy = 'photo-led' | 'detailed-schedule' | 'summary-schedule' | 'benefit-led' | 'story-led' | 'minimal'
 

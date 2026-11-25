@@ -1,6 +1,6 @@
 import JSZip from 'jszip'
 import { describe, expect, it, vi } from 'vitest'
-import { GROUPS, canvasLinkedAssetIds, createSeedProject, isLegacyBaliSeed, makeSection, normalizeLayoutBoxes, normalizeProject, normalizeReferenceMediaSlots, referenceMediaSlot, timelineDayStartsAfterItemRemoval } from './catalog'
+import { GROUPS, TEMPLATE_PRESETS, canvasLinkedAssetIds, createSeedProject, createTemplateProject, isLegacyBaliSeed, makeSection, normalizeLayoutBoxes, normalizeProject, normalizeReferenceMediaSlots, referenceMediaSlot, timelineDayStartsAfterItemRemoval } from './catalog'
 import { runQa } from './qa'
 import { assetsManifestJson, canvasDocumentJson, exportZip, manifestJson, manifestYaml, projectLoadJson, standaloneHtml } from './exporters'
 import { CURRENT_CATALOG_VERSION, CURRENT_SCHEMA_VERSION, isDirectProjectPayload, migrateProject } from './migrations'
@@ -52,6 +52,47 @@ describe('delivery QA', () => {
   it('keeps the selected text and image placement in the project and exports', () => { const project = createSeedProject(); const section = makeSection('text'); section.contentLayout = 'media-left'; project.sections = [section]; expect(normalizeProject(project).sections[0].contentLayout).toBe('media-left'); expect(JSON.parse(manifestJson(project)).sections[0].content_layout).toBe('media-left'); expect(JSON.parse(canvasDocumentJson(project)).blocks[0].bindings.content_layout).toBe('media-left'); expect(standaloneHtml(project)).toContain('content-layout-media-left') })
   it('creates editable grid boxes for legacy sections and preserves added boxes', () => { const section = makeSection('image'); section.layoutBoxes = []; const migrated = normalizeProject({ ...createSeedProject(), sections: [section] }).sections[0]; expect(normalizeLayoutBoxes(migrated).map(box => box.id)).toEqual(['content', 'media']); migrated.layoutBoxes = [...normalizeLayoutBoxes(migrated), { id: 'extra', kind: 'text', column: 2, row: 12, columnSpan: 5, rowSpan: 3, zIndex: 4, text: '추가 문구' }]; const boxes = normalizeLayoutBoxes(migrated); expect(boxes.find(box => box.id === 'extra')).toMatchObject({ kind: 'text', column: 2, text: '추가 문구' }); expect(JSON.parse(manifestJson({ ...createSeedProject(), sections: [migrated] })).sections[0].layout_boxes).toHaveLength(3) })
   it('does not restore a deleted base image card after layout normalization or reload', () => { const section = makeSection('image'); section.removedLayoutBoxIds = ['media']; expect(normalizeLayoutBoxes(section).map(box => box.id)).toEqual(['content']); const reloaded = normalizeProject({ ...createSeedProject(), sections: [section] }).sections[0]; expect(normalizeLayoutBoxes(reloaded).map(box => box.id)).toEqual(['content']); expect(reloaded.removedLayoutBoxIds).toEqual(['media']) })
+  it('exports stack, grid-3, and mosaic image layouts and sanitizes extra text cards', () => {
+    const project = createSeedProject()
+    const ids = ['a', 'b', 'c']
+    project.assets = ids.map(id => ({ id, name: `${id}.jpg`, src: `data:image/jpeg;base64,${id}`, provider: 'provided' as const, sourceId: '', assetStage: 'original' as const, usageScope: 'gallery' as const, rightsStatus: 'cleared' as const, qualityGrade: 'A' as const, approval: 'approved' as const, evidence: '', alt: id }))
+    const section = makeSection('image')
+    section.background = 'sand'
+    section.mediaIds = ids
+    section.mediaLayout = 'grid-3'
+    section.layoutBoxes = [...normalizeLayoutBoxes(section).map(box => box.id === 'media' ? { ...box, assetIds: ids } : box), { id: 'extra-text', kind: 'text', column: 1, row: 14, columnSpan: 12, rowSpan: 4, zIndex: 3, eyebrow: 'EXTRA', title: '<strong>강조 제목</strong>', text: '첫째 줄\n둘째 줄' }]
+    project.sections = [section]
+    const reloaded = normalizeProject(project)
+    expect(reloaded.sections[0].background).toBe('sand')
+    const html = standaloneHtml(reloaded)
+    expect(html).toContain('bg-sand')
+    expect(html).toContain('export-media-grid-3')
+    expect(html).toContain('강조 제목')
+    expect(html).toContain('첫째 줄<br>둘째 줄')
+  })
+  it('creates all 4 starter templates, preserves 4-5 column tables, and exports new template blocks', () => {
+    for (const preset of TEMPLATE_PRESETS) {
+      const tpl = createTemplateProject(preset.id)
+      const normalized = normalizeProject(tpl)
+      expect(normalized.sections.length).toBeGreaterThanOrEqual(3)
+      expect(runQa(normalized).some(item => item.level === 'error')).toBe(false)
+      const html = standaloneHtml(normalized)
+      expect(html).toContain(normalized.page.title.replace(/&/g, '&amp;'))
+    }
+    const golf = createTemplateProject('golf-match')
+    const table = golf.sections.find(s => s.type === 'table')!
+    expect(table.tableHeaders).toHaveLength(4)
+    expect(normalizeProject(golf).sections.find(s => s.type === 'table')!.tableHeaders).toHaveLength(4)
+    const allNew = createSeedProject()
+    allNew.page.title = '신규 블록 검증'
+    allNew.sections = [makeSection('hero-cover'), makeSection('route-bar'), makeSection('option-grid'), makeSection('vs-compare'), makeSection('service-bar')]
+    const html = standaloneHtml(allNew)
+    expect(html).toContain('hero-cover-block')
+    expect(html).toContain('route-bar-block')
+    expect(html).toContain('option-grid-block')
+    expect(html).toContain('vs-compare-block')
+    expect(html).toContain('service-bar-block')
+  })
   it('exports image blocks as an ordered text and image flow', () => { const project = createSeedProject(); const section = makeSection('image'); section.layoutBoxes = [...normalizeLayoutBoxes(section), { id: 'after-photo', kind: 'text', column: 1, row: 13, columnSpan: 12, rowSpan: 4, zIndex: 3, eyebrow: 'DETAIL', title: '이미지 아래 설명', text: '사진 다음에 이어지는 설명입니다.' }]; project.sections = [section]; const html = standaloneHtml(project); expect(html).toContain('image-flow-block'); expect(html.indexOf('Category Label')).toBeLessThan(html.indexOf('이미지 아래 설명')); expect(html).toContain('사진 다음에 이어지는 설명입니다.') })
   it('exports directly edited image positions with the same custom grid spans', () => {
     const project = createSeedProject(); const section = makeSection('image'); const ids = ['wide', 'top', 'bottom']
