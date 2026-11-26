@@ -1,6 +1,10 @@
 ﻿import { useEffect, useRef, useState } from 'react'
 import { Archive, ArrowLeftRight, Blocks, CalendarDays, Check, ChevronDown, ChevronUp, CircleHelp, Download, ExternalLink, Eye, FileJson, FileText, GripVertical, Image as ImageIcon, Layers, Link2, LogOut, MapPinned, Maximize2, Menu, Minus, PanelsTopLeft, Plus, Redo2, Save, Search, Settings2, Sparkles, Table2, Trash2, Undo2, Upload, X } from 'lucide-react'
 import YAML from 'yaml'
+import { useLayoutEffect } from 'react'
+import { flushSync } from 'react-dom'
+import { applyProjectPatch, boolean, choice, direction, dispatchEditorAction, index as cliIndex, projectPatch, record, sectionPatch, sectionTypes, text, type CliRequest, type EditorAction } from './cli-commands'
+import { runQa } from './qa'
 import { canvasLinkedAssetIds, createSampleProject, createSeedProject, createTemplateProject, GROUPS, isLegacyBaliSeed, makeSection, normalizeLayoutBoxes, normalizeProject, normalizeReferenceMediaSlots, normalizeSectionType, referenceMediaSlot, SECTION_LABELS, TEMPLATE_PRESETS, timelineDayStartsAfterItemRemoval, type TemplatePresetId } from './catalog'
 import { APP_VERSION } from './app-version'
 import { moveSectionUnit, normalizeContentGroups, removeSectionsFromGroups, reorderSectionUnit } from './content-groups'
@@ -58,6 +62,13 @@ export default function App() {
   const [zoom, setZoom] = useState(100)
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const [linkedSaveStatus, setLinkedSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle')
+  const [refreshState, setRefreshState] = useState({ status: 'idle', lastAppliedAt: null as string | null, error: '' })
+  const refreshStateRef = useRef(refreshState)
+  const fileBusyRef = useRef(false)
+  const fileContentsRef = useRef<Record<string, string>>({})
+  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [fileOperation, setFileOperation] = useState(0)
+  const refreshHandlerRef = useRef(() => Promise.resolve(false))
   const [zipProgress, setZipProgress] = useState<ZipExportProgress | null>(null)
   const [history, setHistory] = useState<Project[]>([])
   const [future, setFuture] = useState<Project[]>([])
@@ -74,6 +85,9 @@ export default function App() {
   const importRef = useRef<HTMLInputElement>(null)
   const imageRef = useRef<HTMLInputElement>(null)
   const projectRef = useRef(project)
+  const revisionRef = useRef(0)
+  const revisionProjectRef = useRef(project)
+  const cliHandlerRef = useRef<(request: CliRequest) => Promise<unknown>>(async () => { throw new Error('캔버스를 준비하는 중입니다.') })
   const projectsRef = useRef<Project[]>([])
   const projectFilesRef = useRef<Record<string, string>>({})
   const assetSourcesRef = useRef<Record<string, string>>({})
@@ -85,6 +99,24 @@ export default function App() {
 
   useEffect(() => { projectRef.current = project; assetSourcesRef.current = collectAssetSources(project, assetSourcesRef.current) }, [project])
   useEffect(() => { projectsRef.current = projects }, [projects])
+  useLayoutEffect(() => {
+    if (revisionProjectRef.current !== project) {
+      const switchedProject = revisionProjectRef.current.id !== project.id
+      revisionProjectRef.current = project
+      revisionRef.current += 1
+      updateRefreshState(switchedProject ? 'idle' : refreshStateRef.current.status, switchedProject ? '' : refreshStateRef.current.error, true)
+    }
+  }, [project])
+  useEffect(() => {
+    const desktop = window.naeilSpecialDesktop
+    if (!desktop?.onCliRequest) return
+    return desktop.onCliRequest(request => {
+      cliHandlerRef.current(request).then(
+        result => desktop.completeCliRequest(request.id, { result }),
+        error => desktop.completeCliRequest(request.id, { error: error instanceof Error ? error.message : 'CLI 실행 실패' }),
+      )
+    })
+  }, [])
   useEffect(() => { projectFilesRef.current = projectFiles }, [projectFiles])
   useEffect(() => { imageSelectionRef.current = { sectionId: selectedId, boxId: selectedBoxId, specialMediaIndex: selectedSpecialMediaIndex } }, [selectedId, selectedBoxId, selectedSpecialMediaIndex])
   useEffect(() => { let active = true; const shared = parseShareSnapshot(); if (shared) { const next = normalizeProject(shared); setProject(next); setProjects([next]); setSelectedId(next.sections[0]?.id || ''); setReadOnly(true); setReady(true); return } loadWorkspaceWithTimeout().then(stored => {
@@ -117,21 +149,35 @@ export default function App() {
     if (linkedSaveSnapshotRef.current[project.id] === snapshot) { setLinkedSaveStatus('saved'); return }
     setLinkedSaveStatus('saving')
     const timer = setTimeout(async () => {
+      if (fileBusyRef.current || refreshStateRef.current.error) return
+      fileBusyRef.current = true
       const sequence = ++linkedSaveSequenceRef.current
       try {
-        const result = await desktop.saveProjectFile({ contents, filename: `${safeName(project.name)}.json`, path: filePath })
+        if (fileContentsRef.current[filePath] === undefined) throw new Error('먼저 연결 파일을 새로고침하세요.')
+        const result = await desktop.saveProjectFile({ contents, filename: `${safeName(project.name)}.json`, path: filePath, expectedContents: fileContentsRef.current[filePath] })
         if (sequence !== linkedSaveSequenceRef.current) return
         if (result.canceled) throw new Error('AUTO_SAVE_CANCELED')
         linkedSaveSnapshotRef.current[project.id] = snapshot
+        fileContentsRef.current[filePath] = contents
         setLinkedSaveStatus('saved')
         setSavedAt(new Date())
-      } catch {
+      } catch (error) {
         if (sequence !== linkedSaveSequenceRef.current) return
         setLinkedSaveStatus('failed')
+        updateRefreshState('error', error instanceof Error ? error.message : '파일 저장 실패')
+      } finally {
+        fileBusyRef.current = false
+        setFileOperation(value => value + 1)
       }
     }, 1000)
     return () => clearTimeout(timer)
-  }, [project, projectFiles, ready, readOnly])
+  }, [project, projectFiles, ready, readOnly, fileOperation])
+  useLayoutEffect(() => { refreshHandlerRef.current = () => refreshProjectFile(false, true) })
+  useEffect(() => {
+    if (!ready || readOnly || !autoRefresh || !projectFiles[project.id] || !window.naeilSpecialDesktop?.readProjectFile) return
+    const timer = setInterval(() => { void refreshHandlerRef.current() }, 1200)
+    return () => clearInterval(timer)
+  }, [ready, readOnly, autoRefresh, project.id, projectFiles])
   useEffect(() => {
     const desktop = window.naeilSpecialDesktop
     if (!desktop) return
@@ -197,7 +243,85 @@ export default function App() {
     const shouldRecordHistory = !coalesceHistory || now >= historyCoalesceUntilRef.current
     if (coalesceHistory) historyCoalesceUntilRef.current = now + 900
     else historyCoalesceUntilRef.current = 0
-    setProject(current => { if (shouldRecordHistory) setHistory(h => [...h.slice(-39), historySnapshot(current)]); setFuture([]); const draft = deepCopy(current); mutator(draft); draft.updatedAt = new Date().toISOString(); return draft })
+    const current = projectRef.current
+    const draft = deepCopy(current)
+    mutator(draft)
+    draft.updatedAt = new Date().toISOString()
+    if (shouldRecordHistory) setHistory(h => [...h.slice(-39), historySnapshot(current)])
+    setFuture([])
+    projectRef.current = draft
+    setProject(draft)
+  }
+  function updateProject(patch: Partial<Project>, coalesceHistory = false) {
+    commit(draft => applyProjectPatch(draft, patch), coalesceHistory)
+  }
+  function updateRefreshState(status: string, error = '', applied = false) {
+    const next = { status, error, lastAppliedAt: applied ? new Date().toISOString() : refreshStateRef.current.lastAppliedAt }
+    refreshStateRef.current = next
+    setRefreshState(next)
+  }
+  async function refreshProjectFile(discardLocalChanges = false, automatic = false) {
+    const desktop = window.naeilSpecialDesktop
+    const current = projectRef.current
+    const filePath = projectFilesRef.current[current.id]
+    if (!desktop?.readProjectFile || !filePath || readOnly) throw new Error('데스크톱에서 JSON 파일을 먼저 연결하세요.')
+    if (fileBusyRef.current) { if (automatic) return false; throw new Error('파일 처리 중입니다. 잠시 후 다시 시도하세요.') }
+    fileBusyRef.current = true
+    const before = projectLoadJson(current)
+    try {
+      const contents = await desktop.readProjectFile(filePath)
+      if (projectRef.current.id !== current.id || projectFilesRef.current[current.id] !== filePath) return false
+      if (automatic && fileContentsRef.current[filePath] === contents) {
+        if (refreshStateRef.current.error) updateRefreshState('idle')
+        return false
+      }
+      const parsed = JSON.parse(contents.replace(/^\uFEFF/, ''))
+      if (!isDirectProjectPayload(parsed) || parsed.id !== current.id) throw new Error('연결 파일의 프로젝트 구조 또는 ID가 다릅니다.')
+      const result = migrateProject(parsed)
+      const next = normalizeProject(result.project)
+      // Reject malformed text before handing externally edited data to React.
+      for (const item of [next, next.page, ...next.sections, ...next.sections.flatMap(section => section.iconCards || []), ...next.assets]) {
+        for (const key of ['name', 'title', 'subtitle', 'destination', 'internalMemo', 'eyebrow', 'body', 'note', 'src', 'alt']) {
+          const value = (item as unknown as Record<string, unknown>)[key]
+          if (value !== undefined && typeof value !== 'string') throw new Error(`파일의 ${key} 값은 문자열이어야 합니다.`)
+        }
+      }
+      for (const section of next.sections) {
+        if (![section.items, section.mediaIds, section.tableHeaders || [], ...(section.tableRows || [])].every(values => Array.isArray(values) && values.every(value => typeof value === 'string'))) throw new Error('파일의 블록 항목은 문자열 배열이어야 합니다.')
+      }
+      runQa(next)
+      const dirty = linkedSaveSnapshotRef.current[current.id] !== `${filePath}\n${projectLoadJson(projectRef.current)}`
+      if ((dirty && !discardLocalChanges) || projectLoadJson(projectRef.current) !== before || document.querySelector('.inline-edit-input, [contenteditable="true"]:focus')) {
+        throw new Error('LOCAL_CHANGES 저장되지 않은 편집이 있습니다. 새로고침으로 파일을 반영하거나 다른 이름으로 저장하세요.')
+      }
+      await saveMigrationBackup(result)
+      if (projectRef.current.id !== current.id || projectLoadJson(projectRef.current) !== before) throw new Error('LOCAL_CHANGES 읽는 중 편집되었습니다. 다시 시도하세요.')
+      fileContentsRef.current[filePath] = contents
+      linkedSaveSnapshotRef.current[current.id] = `${filePath}\n${projectLoadJson(next)}`
+      flushSync(() => {
+        if (projectLoadJson(next) !== before) {
+          setHistory(h => [...h.slice(-39), historySnapshot(projectRef.current)])
+          setFuture([])
+          projectRef.current = next
+          setProject(next)
+          if (!next.sections.some(section => section.id === selectedId)) focusSection(next.sections[0])
+        }
+        setLinkedSaveStatus('saved')
+        updateRefreshState('applied', '', true)
+      })
+      return true
+    } catch (error) {
+      updateRefreshState('error', error instanceof Error ? error.message : '파일 새로고침 실패')
+      if (!automatic) throw error
+      return false
+    } finally { fileBusyRef.current = false; setFileOperation(value => value + 1) }
+  }
+  async function refreshFromButton() {
+    const current = projectRef.current
+    const filePath = projectFilesRef.current[current.id]
+    const dirty = linkedSaveSnapshotRef.current[current.id] !== `${filePath}\n${projectLoadJson(current)}`
+    if (dirty && !window.confirm('저장되지 않은 편집을 연결 JSON 내용으로 바꿀까요? 현재 편집은 실행 취소로 복원할 수 있습니다.')) return
+    try { await refreshProjectFile(dirty) } catch (error) { setToast(error instanceof Error ? error.message : '새로고침 실패') }
   }
   async function saveProjectFile(saveAs = false) {
     if (readOnly) { setToast('읽기 전용 공유본은 저장할 수 없습니다.'); return false }
@@ -211,12 +335,18 @@ export default function App() {
       setToast('프로젝트 JSON을 다운로드했습니다.')
       return true
     }
+    if (fileBusyRef.current) { setToast('파일 처리 중입니다. 잠시 후 다시 시도하세요.'); return false }
+    fileBusyRef.current = true
     try {
-      const result = await desktop.saveProjectFile({ contents, filename: `${safeName(current.name)}.json`, path: saveAs ? undefined : projectFilesRef.current[current.id] })
+      const filePath = saveAs ? undefined : projectFilesRef.current[current.id]
+      if (filePath && fileContentsRef.current[filePath] === undefined) throw new Error('먼저 연결 파일을 새로고침하세요.')
+      const result = await desktop.saveProjectFile({ contents, filename: `${safeName(current.name)}.json`, path: filePath, expectedContents: filePath ? fileContentsRef.current[filePath] : undefined })
       if (result.canceled || !result.path) return false
       const nextFiles = { ...projectFilesRef.current, [current.id]: result.path }
       projectFilesRef.current = nextFiles
       linkedSaveSnapshotRef.current[current.id] = `${result.path}\n${contents}`
+      fileContentsRef.current[result.path] = contents
+      updateRefreshState('applied', '', true)
       setProjectFiles(nextFiles)
       setLinkedSaveStatus('saved')
       projectsRef.current = nextProjects
@@ -228,7 +358,7 @@ export default function App() {
     } catch (error) {
       setToast(error instanceof Error ? error.message : '프로젝트 JSON을 저장하지 못했습니다.')
       return false
-    }
+    } finally { fileBusyRef.current = false; setFileOperation(value => value + 1) }
   }
   function requestAppClose() {
     const desktop = window.naeilSpecialDesktop
@@ -589,6 +719,8 @@ export default function App() {
             const nextFiles = { ...projectFilesRef.current, [direct.id]: desktopFilePath }
             projectFilesRef.current = nextFiles
             linkedSaveSnapshotRef.current[direct.id] = `${desktopFilePath}\n${projectLoadJson(direct)}`
+            fileContentsRef.current[desktopFilePath] = text
+            updateRefreshState('applied', '', true)
             setProjectFiles(nextFiles)
             setLinkedSaveStatus('saved')
           } else {
@@ -646,6 +778,93 @@ export default function App() {
     setToast('내보내기를 완료했습니다.')
   }
 
+  function cliSection(value: unknown) {
+    const section = projectRef.current.sections.find(item => item.id === text(value))
+    if (!section) throw new Error('블록 ID를 찾을 수 없습니다.')
+    return section
+  }
+  function cliItem(sectionId: unknown, value: unknown) {
+    const section = cliSection(sectionId)
+    const itemIndex = cliIndex(value)
+    if (!ITEM_PRESET_TYPES.has(section.type) || itemIndex >= presetItemCount(section)) throw new Error('항목 인덱스를 찾을 수 없습니다.')
+    return itemIndex
+  }
+  const editorActions: Record<string, EditorAction> = {
+    'project.refresh': { params: ['discardLocalChanges'], run: ([discard]) => refreshProjectFile(boolean(discard)) },
+    'project.autoRefresh': { params: ['enabled'], run: ([enabled]) => setAutoRefresh(boolean(enabled)) },
+    'project.rename': { params: ['name'], run: ([name]) => updateProject({ name: text(name) }) },
+    'project.patch': { params: ['patch'], run: ([patch]) => updateProject(projectPatch(patch)) },
+    'project.save': { params: [], run: async () => { if (!await saveProjectFile()) throw new Error('저장이 취소되었거나 실패했습니다.') } },
+    'section.add': { params: ['type'], run: ([type]) => addSection(choice(type, sectionTypes)) },
+    'section.update': { params: ['sectionId', 'patch'], run: ([id, patch]) => {
+      const section = cliSection(id)
+      const next = sectionPatch(patch)
+      if (next.mediaIds?.some(assetId => assetId && !project.assets.some(asset => asset.id === assetId))) throw new Error('이미지 ID를 찾을 수 없습니다.')
+      updateSectionById(section.id, next)
+    } },
+    'section.delete': { params: ['sectionId'], run: ([id]) => deleteSection(cliSection(id).id) },
+    'section.duplicate': { params: ['sectionId'], run: ([id]) => duplicateSection(cliSection(id).id) },
+    'section.move': { params: ['sectionId', 'direction'], run: ([id, value]) => moveSection(cliSection(id).id, direction(value)) },
+    'section.reorder': { params: ['sectionId', 'targetId', 'placement'], run: ([id, target, placement]) => reorderSection(cliSection(id).id, cliSection(target).id, choice(placement, ['before', 'after'])) },
+    'section.select': { params: ['sectionId'], readOnly: true, run: ([id]) => focusSection(cliSection(id)) },
+    'item.add': { params: ['sectionId'], run: ([id]) => {
+      const section = cliSection(id)
+      if (!ITEM_PRESET_TYPES.has(section.type)) throw new Error('항목을 지원하는 블록이 아닙니다.')
+      addPresetItem(section.id)
+    } },
+    'item.update': { params: ['sectionId', 'index', 'value'], run: ([id, value, content]) => {
+      const itemIndex = cliItem(id, value)
+      const section = cliSection(id)
+      if (section.type === 'table') {
+        const patch = sectionPatch({ tableRows: [content] })
+        updatePresetItem(section.id, itemIndex, patch.tableRows![0])
+      } else if (section.type === 'icon-card') {
+        const patch = record(content)
+        for (const [key, item] of Object.entries(patch)) {
+          choice(key, ['icon', 'title', 'body', 'tone'])
+          if (key === 'tone') choice(item, ['teal', 'orange', 'green'])
+          else text(item)
+        }
+        updatePresetItem(section.id, itemIndex, patch)
+      } else updatePresetItem(section.id, itemIndex, text(content))
+    } },
+    'item.delete': { params: ['sectionId', 'index'], run: ([id, value]) => deletePresetItem(text(id), cliItem(id, value)) },
+    'item.move': { params: ['sectionId', 'index', 'direction'], run: ([id, value, move]) => movePresetItem(text(id), cliItem(id, value), direction(move)) },
+    'layout.set': { params: ['sectionId', 'layout'], run: ([id, layout]) => {
+      const patch = sectionPatch({ mediaLayout: layout })
+      setSectionLayout(cliSection(id).id, patch.mediaLayout!)
+    } },
+    'group.create': { params: ['sectionIds'], run: ([ids]) => {
+      if (!Array.isArray(ids) || ids.length < 2) throw new Error('블록 ID가 2개 이상 필요합니다.')
+      createContentGroup(ids.map(id => cliSection(id).id))
+    } },
+    'group.ungroup': { params: ['groupId'], run: ([id]) => {
+      if (!project.contentGroups?.some(group => group.id === text(id))) throw new Error('그룹 ID를 찾을 수 없습니다.')
+      ungroupContent(text(id))
+    } },
+    'history.undo': { params: [], run: undo },
+    'history.redo': { params: [], run: redo },
+    'export.html': { params: [], readOnly: true, run: () => standaloneHtml(projectRef.current) },
+    'export.json': { params: [], readOnly: true, run: () => projectLoadJson(projectRef.current) },
+    'export.download': { params: ['format'], readOnly: true, run: ([format]) => doExport(choice(format, ['html', 'load-json', 'zip'])) },
+    qa: { params: [], readOnly: true, run: () => runQa(projectRef.current) },
+  }
+  useLayoutEffect(() => {
+    cliHandlerRef.current = async request => {
+      if (!ready) throw new Error('캔버스를 준비하는 중입니다.')
+      const status = () => ({ revision: revisionRef.current, projectId: projectRef.current.id, name: projectRef.current.name, readOnly, refresh: { ...refreshStateRef.current, autoRefresh, linkedPath: projectFilesRef.current[projectRef.current.id] || '', busy: fileBusyRef.current }, actions: Object.fromEntries(Object.entries(editorActions).map(([name, action]) => [name, { params: action.params, readOnly: Boolean(action.readOnly) }])), sectionTypes })
+      if (request.command === 'status') return status()
+      if (request.command === 'get') return { ...status(), project: JSON.parse(projectLoadJson(projectRef.current)) }
+      if (request.command !== 'dispatch') throw new Error('지원하지 않는 command입니다.')
+      let result: unknown
+      historyCoalesceUntilRef.current = 0
+      flushSync(() => { result = dispatchEditorAction(editorActions, request.payload, revisionRef.current, readOnly) })
+      historyCoalesceUntilRef.current = 0
+      result = await result
+      return { ...status(), result: result ?? null }
+    }
+  })
+
   if (!ready) return <div className="loading"><div className="brand-mark brand-logo"><img src={BRAND_LOGO} alt="내일투어"/></div><p>캔버스를 준비하는 중…</p></div>
   const linkedJsonPath = projectFiles[project.id] || ''
   const savedAtLabel = savedAt?.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
@@ -663,8 +882,10 @@ export default function App() {
   return <div className={`app-shell ${readOnly ? 'is-readonly' : ''} ${leftTab === 'images' ? 'image-library-expanded' : ''}`}>
     <header className="topbar">
       <div className="brand"><button className="brand-mark brand-logo" type="button" aria-label="새 빈 캔버스 열기" title="새 빈 캔버스 열기" onClick={openNewBlankCanvas}><img src={BRAND_LOGO} alt="내일투어"/></button><div><strong>내일스패셜 메이킹 스튜디오</strong><span>{readOnly ? 'Read-only handoff' : `Making studio · v${APP_VERSION}`}</span></div></div>
-      <div className="project-title"><input aria-label="프로젝트 이름" value={project.name} onChange={e => commit(d => { const prevName = d.name; d.name = e.target.value; if (!d.page.title.trim() || d.page.title === prevName) d.page.title = e.target.value }, true)}/><span title={linkedJsonPath || undefined}>{saveStatusLabel}</span></div>
+      <div className="project-title"><input aria-label="프로젝트 이름" value={project.name} onChange={e => updateProject({ name: e.target.value }, true)}/><span title={linkedJsonPath || undefined}>{saveStatusLabel}</span></div>
       <div className="toolbar-actions">
+        <button className="ghost-button" aria-label="연결 JSON 새로고침" disabled={readOnly || !linkedJsonPath || !window.naeilSpecialDesktop?.readProjectFile} onClick={() => void refreshFromButton()}>↻ 새로고침</button>
+        <label><input type="checkbox" aria-label="외부 JSON 자동 감지" checked={autoRefresh} disabled={readOnly || !linkedJsonPath} onChange={event => setAutoRefresh(event.target.checked)}/> 자동 감지</label>
         {!readOnly && <div className="file-wrap"><button className="ghost-button" onClick={() => setFileMenuOpen(open => !open)}><Save size={16}/> 파일 <ChevronDown size={14}/></button>{fileMenuOpen && <FileMenu hasLinkedFile={Boolean(projectFiles[project.id])} onImport={() => { setFileMenuOpen(false); importRef.current?.click() }} onSave={() => { setFileMenuOpen(false); void saveProjectFile() }} onSaveAs={() => { setFileMenuOpen(false); void saveProjectFile(true) }} onClose={() => { setFileMenuOpen(false); requestAppClose() }}/>}</div>}
         <button className="icon-button mobile-only" aria-label="왼쪽 패널" onClick={() => setMobilePanel('left')}><Menu size={18}/></button>
         <button className="icon-button" aria-label="실행 취소" disabled={!history.length} onClick={undo}><Undo2 size={18}/></button>
@@ -702,7 +923,7 @@ export default function App() {
           </div>
         </div>
       </div>
-      <div className="statusbar"><span><span className="status-dot"/> {readOnly ? '공유 스냅샷' : linkedJsonPath ? '연결 JSON 자동 저장' : '로컬 자동 저장'}</span><span>{CANVAS_WIDTH}px 고정 · {project.sections.length}개 블록 · {project.assets.length}개 이미지</span><div className="zoom"><button aria-label="축소" onClick={() => setZoom(z => Math.max(35, z - 5))}><Minus/></button><input aria-label="확대 비율" type="range" min="35" max="120" value={zoom} onChange={e => setZoom(Number(e.target.value))}/><button aria-label="확대" onClick={() => setZoom(z => Math.min(120, z + 5))}><Plus/></button><button onClick={() => setZoom(100)}>{zoom}%</button></div></div>
+      <div className="statusbar"><span><span className="status-dot"/> {readOnly ? '공유 스냅샷' : linkedJsonPath ? '연결 JSON 자동 저장' : '로컬 자동 저장'}</span><span className="refresh-status" role="status" title={refreshState.error || undefined}>{refreshState.error ? '파일 반영 보류 · 새로고침 필요' : `마지막 반영 ${refreshState.lastAppliedAt ? new Date(refreshState.lastAppliedAt).toLocaleTimeString('ko-KR', { hour12: false }) : '—'}`}</span><span>{CANVAS_WIDTH}px · {project.sections.length}개 블록</span><div className="zoom"><button aria-label="축소" onClick={() => setZoom(z => Math.max(35, z - 5))}><Minus/></button><input aria-label="확대 비율" type="range" min="35" max="120" value={zoom} onChange={e => setZoom(Number(e.target.value))}/><button aria-label="확대" onClick={() => setZoom(z => Math.min(120, z + 5))}><Plus/></button><button onClick={() => setZoom(100)}>{zoom}%</button></div></div>
     </main>
 
     <aside className={`right-panel ${mobilePanel === 'right' ? 'mobile-open' : ''}`}>

@@ -1,6 +1,6 @@
 import JSZip from 'jszip'
 import { describe, expect, it, vi } from 'vitest'
-import { GROUPS, TEMPLATE_PRESETS, canvasLinkedAssetIds, createSeedProject, createTemplateProject, isLegacyBaliSeed, makeSection, normalizeLayoutBoxes, normalizeProject, normalizeReferenceMediaSlots, referenceMediaSlot, timelineDayStartsAfterItemRemoval } from './catalog'
+import { GROUPS, TEMPLATE_PRESETS, canvasLinkedAssetIds, createSampleProject, createSeedProject, createTemplateProject, isLegacyBaliSeed, makeSection, normalizeLayoutBoxes, normalizeProject, normalizeReferenceMediaSlots, referenceMediaSlot, timelineDayStartsAfterItemRemoval } from './catalog'
 import { runQa } from './qa'
 import { assetsManifestJson, canvasDocumentJson, exportZip, manifestJson, manifestYaml, projectLoadJson, standaloneHtml } from './exporters'
 import { CURRENT_CATALOG_VERSION, CURRENT_SCHEMA_VERSION, isDirectProjectPayload, migrateProject } from './migrations'
@@ -11,6 +11,22 @@ import { moveSectionUnit, normalizeContentGroups, removeSectionsFromGroups, reor
 import { joinPair, joinTimeline, splitPair, splitTimeline } from './preset-item-format'
 
 describe('delivery QA', () => {
+  it('creates seed, sample, and starter projects with empty image slots', () => {
+    const projects = [createSeedProject(), createSampleProject(), ...TEMPLATE_PRESETS.map(preset => createTemplateProject(preset.id))]
+    for (const project of projects) {
+      for (const candidate of [project, normalizeProject(project)]) {
+        expect(candidate.assets).toEqual([])
+        expect(canvasLinkedAssetIds(candidate.sections)).toEqual([])
+        for (const section of candidate.sections) {
+          expect(section.mediaIds.filter(Boolean)).toEqual([])
+          expect(normalizeLayoutBoxes(section).flatMap(box => box.assetIds || [])).toEqual([])
+        }
+      }
+    }
+    const image = projects[1].sections.find(section => section.type === 'image')!
+    expect(normalizeLayoutBoxes(image).map(box => box.kind)).toEqual(['content', 'media'])
+    expect(projects[2].sections[0].mediaLayout).toBe('mosaic-left')
+  })
   it('starts with a blank project and shared placeholder copy', () => { const project = createSeedProject(); expect(project.name).toBe('새 내일스패셜 기획안'); expect(project.sections).toEqual([]); expect(project.assets).toEqual([]); expect(project.page.title).toBe(''); expect(makeSection('image').mediaLayout).toBe('auto'); expect(makeSection('list').items).toHaveLength(3); expect(makeSection('table').tableHeaders).toEqual(['구분', '내용']); expect(makeSection('icon-card').iconCards).toHaveLength(3); expect(makeSection('menu-zigzag').items[0]).toContain('|'); expect(makeSection('timeline')).toMatchObject({ eyebrow: 'Category Label', title: '제목', body: '본문' }); expect(makeSection('text')).toMatchObject({ eyebrow: 'Category Label', title: '제목', body: '본문', items: [] }) })
   it('collapses rich-text fields that contain formatting without visible copy', () => { expect(isRichTextEmpty('')).toBe(true); expect(isRichTextEmpty('<br>')).toBe(true); expect(isRichTextEmpty('<strong></strong><span style="color:#07858b">&nbsp;</span>')).toBe(true); expect(isRichTextEmpty('<strong>제목</strong>')).toBe(false) })
   it('uses readable copy instead of HTML markup in layer labels', () => { expect(richTextToPlainText('<span style="font-size: 1.32em; color: #07858b">우리만 <strong>여행</strong></span><br>안내')).toBe('우리만 여행 안내') })

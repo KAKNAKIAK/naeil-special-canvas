@@ -13,11 +13,14 @@ declare global {
     naeilSpecialDesktop?: {
       downloadImage: (url: string) => Promise<{ bytes: ArrayBuffer; contentType: string }>
       lookupGettyContent: (contentId: string) => Promise<{ contentId: string; title: string; pageUrl: string; thumbUrl: string; status: 'found' | 'not_found' | 'error'; errorMessage: string }>
-      saveProjectFile: (payload: { contents: string; filename: string; path?: string }) => Promise<{ canceled: boolean; path?: string }>
+      saveProjectFile: (payload: { contents: string; filename: string; path?: string; expectedContents?: string }) => Promise<{ canceled: boolean; path?: string }>
+      readProjectFile: (path: string) => Promise<string>
       getFilePath?: (file: File) => string
       requestClose: () => void
       onSaveBeforeClose: (callback: (mode: 'save' | 'save-as') => void) => () => void
       completeSaveBeforeClose: (saved: boolean) => void
+      onCliRequest?: (callback: (request: import('./cli-commands').CliRequest) => void) => () => void
+      completeCliRequest: (id: string, response: { result?: unknown; error?: string }) => void
     }
   }
 }

@@ -1,12 +1,14 @@
 const { app, BrowserWindow, shell, ipcMain, net, dialog } = require('electron')
-const { autoUpdater } = require('electron-updater')
 const path = require('node:path')
 const fs = require('node:fs/promises')
 const { lookupGettyContent } = require('./getty-lookup.cjs')
+const { createRendererRelay, startCliBridge } = require('./cli-bridge.cjs')
 
 const APP_ID = 'kr.co.naeiltour.specialcanvas'
 let isInstallingUpdate = false
 let autoUpdaterConfigured = false
+let cliBridge
+let cliRelay
 const isPrimaryInstance = app.requestSingleInstanceLock()
 
 if (!isPrimaryInstance) app.quit()
@@ -51,6 +53,7 @@ async function syncBundledSkill() {
 
 function configureAutoUpdater(window) {
   if (!app.isPackaged || autoUpdaterConfigured) return
+  const { autoUpdater } = require('electron-updater')
   autoUpdaterConfigured = true
 
   autoUpdater.autoDownload = true
@@ -79,7 +82,12 @@ function configureAutoUpdater(window) {
 }
 
 app.setAppUserModelId(APP_ID)
-app.setPath('userData', path.join(app.getPath('appData'), 'NaeilSpecialCanvas'))
+app.setPath('userData', app.commandLine.getSwitchValue('user-data-dir') || path.join(app.getPath('appData'), 'NaeilSpecialCanvas'))
+
+ipcMain.handle('naeil-special:read-project-file', async (_event, filePath) => {
+  if (typeof filePath !== 'string' || !path.isAbsolute(filePath) || path.extname(filePath).toLowerCase() !== '.json') throw new Error('연결 JSON 경로가 필요합니다.')
+  return fs.readFile(filePath, 'utf8')
+})
 
 ipcMain.handle('naeil-special:save-project-file', async (event, payload = {}) => {
   const owner = BrowserWindow.fromWebContents(event.sender)
@@ -97,6 +105,10 @@ ipcMain.handle('naeil-special:save-project-file', async (event, payload = {}) =>
     filePath = result.filePath
   }
   if (path.extname(filePath).toLowerCase() !== '.json') filePath += '.json'
+  if (payload.path && typeof payload.expectedContents === 'string') {
+    const actual = await fs.readFile(filePath, 'utf8')
+    if (actual !== payload.expectedContents) throw new Error('FILE_CONFLICT 외부 파일이 변경되었습니다. 새로고침하거나 다른 이름으로 저장하세요.')
+  }
   await fs.writeFile(filePath, contents, 'utf8')
   return { canceled: false, path: filePath }
 })
@@ -220,13 +232,22 @@ function createWindow() {
     clearTimeout(saveTimeout)
     ipcMain.removeListener('naeil-special:save-before-close-complete', saveBeforeCloseComplete)
   })
-  window.loadFile(path.join(__dirname, 'dist', 'index.html'))
+  window.loadFile(path.join(__dirname, app.isPackaged ? 'dist' : '../dist', 'index.html'))
 }
 
 if (isPrimaryInstance) {
   app.whenReady().then(async () => {
     await syncBundledSkill()
     createWindow()
+    cliRelay = createRendererRelay(ipcMain, () => BrowserWindow.getAllWindows()[0]?.webContents)
+    try {
+      cliBridge = await startCliBridge({
+        connectionPath: path.join(app.getPath('userData'), 'cli-connection.json'),
+        handleRequest: (command, payload) => cliRelay.request(command, payload),
+      })
+    } catch (error) {
+      console.warn('[cli-bridge]', error.message)
+    }
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
     })
@@ -276,3 +297,13 @@ ipcMain.handle('naeil-special:lookup-getty-content', async (_event, rawContentId
 })
 
 app.on('window-all-closed', () => app.quit())
+app.on('will-quit', event => {
+  if (!cliBridge) return
+  event.preventDefault()
+  cliRelay?.close()
+  const closingBridge = cliBridge
+  cliBridge = undefined
+  closingBridge.close()
+    .catch(() => console.warn('[cli-bridge] Shutdown cleanup failed.'))
+    .finally(() => app.quit())
+})

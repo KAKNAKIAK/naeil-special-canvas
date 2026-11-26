@@ -1,4 +1,4 @@
-import type { BlockBox, CampaignData, IconCardItem, MediaAsset, Project, Section, SectionType } from './types'
+import type { BlockBox, CampaignData, IconCardItem, Project, Section, SectionType } from './types'
 import { CURRENT_CATALOG_VERSION, CURRENT_SCHEMA_VERSION, migrateProject } from './migrations'
 import { normalizeContentGroups } from './content-groups'
 
@@ -245,16 +245,9 @@ export function createSeedProject(): Project {
   }
 }
 
-function sampleImage(id: string, name: string, label: string, colors: [string, string]): MediaAsset {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${colors[0]}"/><stop offset="1" stop-color="${colors[1]}"/></linearGradient></defs><rect width="1440" height="900" fill="url(#g)"/><circle cx="1180" cy="150" r="190" fill="rgba(255,255,255,.16)"/><path d="M0 650 C220 540 390 760 620 640 S1030 510 1440 680 V900 H0Z" fill="rgba(255,255,255,.17)"/><text x="100" y="690" fill="white" font-family="sans-serif" font-size="66" font-weight="700">${label}</text><text x="104" y="752" fill="white" fill-opacity=".78" font-family="sans-serif" font-size="27">SAMPLE IMAGE · REPLACE WITH YOUR PHOTO</text></svg>`
-  return { id, name, src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`, provider: 'generated', sourceId: 'studio-sample', assetStage: 'reference', usageScope: '내일스패셜 메이킹 스튜디오 샘플', rightsStatus: 'cleared', qualityGrade: 'B', approval: 'approved', evidence: '앱 내 연습용 SVG', alt: label }
-}
-
 /** A safe, editable practice project. It never overwrites the user's current draft. */
 export function createSampleProject(): Project {
   const project = createSeedProject()
-  const beach = sampleImage(crypto.randomUUID(), 'sample-guam-beach.svg', 'GUAM BEACH', ['#0a8c96', '#45b9cb'])
-  const stay = sampleImage(crypto.randomUUID(), 'sample-guam-stay.svg', 'RESORT STAY', ['#d88a52', '#f0bd76'])
   const text = makeSection('text')
   text.eyebrow = 'SAMPLE PROJECT'
   text.title = '괌 가족 휴양 4박 5일'
@@ -263,7 +256,6 @@ export function createSampleProject(): Project {
   image.eyebrow = 'RESORT HIGHLIGHT'
   image.title = '바다 가까이에서 보내는 여유로운 하루'
   image.body = '가운데 이미지 박스를 클릭하면 왼쪽 이미지 탭으로 이동합니다. 라이브러리의 사진을 눌러 이 자리에 연결해 보세요.'
-  image.mediaIds = [beach.id, stay.id]
   image.layoutBoxes = createLayoutBoxes('text-top', image.mediaIds)
   const list = makeSection('list')
   list.eyebrow = 'WHY THIS TRIP'
@@ -278,7 +270,6 @@ export function createSampleProject(): Project {
     page: { title: '괌 가족 휴양', subtitle: '바다 가까이에서 보내는 4박 5일', destination: '괌', internalMemo: '연습용 샘플입니다. 자유롭게 수정하거나 삭제해 보세요.' },
     campaign: createCampaignData(project.id, '샘플 · 괌 가족 휴양 기획안'),
     sections: [text, image, list],
-    assets: [beach, stay],
   }
 }
 
@@ -286,16 +277,10 @@ export function createSampleProject(): Project {
 export function createTemplateProject(templateId: TemplatePresetId): Project {
   const project = createSeedProject()
   if (templateId === 'theme-multi-city') {
-    const a1 = sampleImage(crypto.randomUUID(), 'theme-hero.svg', 'EUROPEAN BEER', ['#b86b1a', '#5b3110'])
-    const a2 = sampleImage(crypto.randomUUID(), 'theme-city1.svg', 'AMSTERDAM', ['#2b6f8c', '#1d3c4d'])
-    const a3 = sampleImage(crypto.randomUUID(), 'theme-city2.svg', 'BRUSSELS', ['#6b4933', '#c68d4e'])
-    const a4 = sampleImage(crypto.randomUUID(), 'theme-city3.svg', 'PLZEN', ['#8c5a2b', '#4d2f12'])
-    const a5 = sampleImage(crypto.randomUUID(), 'theme-city4.svg', 'PRAGUE', ['#3c5368', '#86a3ba'])
     const hero = makeSection('image')
     hero.eyebrow = 'EUROPEAN BEER TOURS'
     hero.title = '유럽 맥주 기행 테마 우리만'
     hero.body = '체코·독일·벨기에·네덜란드 브루어리와 소도시를 전용 동선으로 연결합니다.'
-    hero.mediaIds = [a1.id, a2.id, a3.id]
     hero.mediaLayout = 'mosaic-left'
     hero.layoutBoxes = createLayoutBoxes('text-top', hero.mediaIds)
     const route = makeSection('route-bar')
@@ -310,29 +295,19 @@ export function createTemplateProject(templateId: TemplatePresetId): Project {
     benefits.background = 'sand'
     benefits.listStyle = 'offer'
     benefits.items = ['암스테르담 브루어리 투어 | 라거 제조 과정 체험과 생맥주 시음', '브뤼셀 양조장 투어 | 벨기에 대표 에일·수도원 맥주 테이스팅', '플젠 오리지널 지하 저장고 | 오크통 무여과 맥주 직추출 시음', '프라하 코젤 & 고속열차 | 좌석 사전 예약 및 현지 픽업 연계']
-    benefits.mediaIds = [a2.id, a3.id, a4.id, a5.id]
-    return { ...project, name: '테마 우리만 · 다도시 특전 기획안', category: '우리만', layout: 'theme-package', page: { title: '유럽 맥주 기행 테마 우리만', subtitle: '4개국 브루어리 & 소도시 일주', destination: '유럽', internalMemo: '' }, campaign: createCampaignData(project.id, '테마 우리만 · 다도시 특전 기획안'), sections: [hero, route, benefits], assets: [a1, a2, a3, a4, a5] }
+    return { ...project, name: '테마 우리만 · 다도시 특전 기획안', category: '우리만', layout: 'theme-package', page: { title: '유럽 맥주 기행 테마 우리만', subtitle: '4개국 브루어리 & 소도시 일주', destination: '유럽', internalMemo: '' }, campaign: createCampaignData(project.id, '테마 우리만 · 다도시 특전 기획안'), sections: [hero, route, benefits] }
   }
   if (templateId === 'honeymoon-pick') {
-    const coverImg = sampleImage(crypto.randomUUID(), 'bali-cover.svg', 'BALI HONEYMOON', ['#0b5d69', '#d68548'])
-    const opt1 = sampleImage(crypto.randomUUID(), 'opt-swing.svg', 'BALI SWING', ['#2c8f68', '#1f5c43'])
-    const opt2 = sampleImage(crypto.randomUUID(), 'opt-rafting.svg', 'RAFTING', ['#1b6d96', '#52b8cf'])
-    const opt3 = sampleImage(crypto.randomUUID(), 'opt-ubud.svg', 'UBUD TOUR', ['#2d6a32', '#75b848'])
-    const opt4 = sampleImage(crypto.randomUUID(), 'opt-snap.svg', 'HONEYMOON SNAP', ['#6a3122', '#d47e45'])
-    const spa = sampleImage(crypto.randomUUID(), 'bali-spa.svg', 'DAILY SPA', ['#8c6b53', '#c9a787'])
-    const dinner = sampleImage(crypto.randomUUID(), 'bali-dinner.svg', 'SUNSET DINNER', ['#7a3420', '#c8703c'])
     const cover = makeSection('hero-cover')
     cover.eyebrow = 'HONEYMOON SPECIAL'
     cover.title = '발리 프라이빗 허니문'
     cover.body = '럭셔리 풀빌라 휴양과 원데이 액티비티, 데일리 마사지까지 둘만의 속도로 고르는 맞춤 허니문'
     cover.items = ['NO쇼핑 · NO옵션', '단독 가이드', '풀빌라 4박']
-    cover.mediaIds = [coverImg.id]
     const pick = makeSection('option-grid')
     pick.eyebrow = 'HONEYMOON BENEFIT 01'
     pick.title = '원데이 프로그램 택 1'
     pick.body = '2일차·3일차 원하는 체험을 각각 1개씩 자유롭게 선택할 수 있습니다.'
     pick.items = ['발리스윙', '아융강 래프팅', '우붓 투어', '허니문 스냅']
-    pick.mediaIds = [opt1.id, opt2.id, opt3.id, opt4.id]
     const common = makeSection('caption-grid')
     common.eyebrow = 'COMMON BENEFITS'
     common.title = '허니문 예약 시 공통 특전'
@@ -340,40 +315,31 @@ export function createTemplateProject(templateId: TemplatePresetId): Project {
     common.background = 'sand'
     common.listStyle = 'offer'
     common.items = ['데일리 마사지 2시간 | 매일 피로를 풀어주는 프라이빗 스파', '발리 선셋 스페셜 디너 | 해변 로맨틱 디너 1회 제공']
-    common.mediaIds = [spa.id, dinner.id]
-    return { ...project, name: '허니문 · 선택형 특전 기획안', category: '금까기', layout: 'hotel-sales', page: { title: '발리 프라이빗 허니문', subtitle: '풀빌라 4박 + 선택형 액티비티', destination: '발리', internalMemo: '' }, campaign: createCampaignData(project.id, '허니문 · 선택형 특전 기획안'), sections: [cover, pick, common], assets: [coverImg, opt1, opt2, opt3, opt4, spa, dinner] }
+    return { ...project, name: '허니문 · 선택형 특전 기획안', category: '금까기', layout: 'hotel-sales', page: { title: '발리 프라이빗 허니문', subtitle: '풀빌라 4박 + 선택형 액티비티', destination: '발리', internalMemo: '' }, campaign: createCampaignData(project.id, '허니문 · 선택형 특전 기획안'), sections: [cover, pick, common] }
   }
   if (templateId === 'kids-vs') {
-    const eq = sampleImage(crypto.randomUUID(), 'kids-eq.svg', 'EQ NATURE', ['#2c8f68', '#6ac98f'])
-    const iq = sampleImage(crypto.randomUUID(), 'kids-iq.svg', 'IQ HISTORY', ['#2b6cb0', '#69a9e8'])
-    const spot1 = sampleImage(crypto.randomUUID(), 'spot-usj.svg', 'THEME PARK', ['#2d87c8', '#e86b58'])
-    const spot2 = sampleImage(crypto.randomUUID(), 'spot-castle.svg', 'HISTORY SPOT', ['#4b7485', '#8fb8a8'])
     const vs = makeSection('vs-compare')
     vs.eyebrow = 'FAMILY THEME'
     vs.title = '우리 아이 EQ & IQ 올려보자!'
     vs.body = '감성 체험과 역사 배움을 균형 있게 담아낸 가족 맞춤 일정입니다.'
     vs.background = 'mist'
     vs.items = ['감성 · 자연 체험 | EQ 여행이란? | 아이와 함께 새로운 자연과 문화를 몸으로 체험하며 감수성을 넓히는 여행', '역사 · 배움 체험 | IQ 여행이란? | 박물관·역사 현장을 직접 보고 만들며 호기심과 시야를 키우는 배움 여행']
-    vs.mediaIds = [eq.id, iq.id]
     const spots = makeSection('caption-grid')
     spots.eyebrow = 'EXPERIENCE SPOTS'
     spots.title = '주제별 핵심 체험 스팟'
     spots.body = '아이 눈높이에 맞춘 대표 체험지를 담았습니다.'
     spots.items = ['유니버셜 스튜디오 | 가족 모두가 즐기는 대표 테마파크', '오사카성 & 컵라면 박물관 | 역사 탐방과 나만의 컵라면 만들기']
-    spots.mediaIds = [spot1.id, spot2.id]
     const svc = makeSection('service-bar')
     svc.eyebrow = 'SPECIAL SERVICE'
     svc.title = '내일투어 스페셜 서비스'
     svc.body = '가족 여행 준비부터 현지 케어까지 함께합니다.'
-    return { ...project, name: '키즈·가족 비교(VS) 기획안', category: '우리만', layout: 'theme-package', page: { title: '우리 아이 EQ & IQ 가족여행', subtitle: '체험과 배움이 함께하는 우리만', destination: '오사카', internalMemo: '' }, campaign: createCampaignData(project.id, '키즈·가족 비교(VS) 기획안'), sections: [vs, spots, svc], assets: [eq, iq, spot1, spot2] }
+    return { ...project, name: '키즈·가족 비교(VS) 기획안', category: '우리만', layout: 'theme-package', page: { title: '우리 아이 EQ & IQ 가족여행', subtitle: '체험과 배움이 함께하는 우리만', destination: '오사카', internalMemo: '' }, campaign: createCampaignData(project.id, '키즈·가족 비교(VS) 기획안'), sections: [vs, spots, svc] }
   }
-  const golfImg = sampleImage(crypto.randomUUID(), 'golf-course.svg', 'PARK GOLF MATCH', ['#2d6a32', '#1c4a6b'])
   const cover = makeSection('hero-cover')
   cover.eyebrow = 'INTERNATIONAL PARK GOLF'
   cover.title = '중국 위해 유공도 국제 파크골프 대회'
   cover.body = '해안 도시 위해에서 펼쳐지는 36홀 개인 타수 경기와 휴양 일정'
   cover.items = ['주관 · 위해시 체육국', '기간 · 4월 14일~16일', '방식 · 36홀 스트로크']
-  cover.mediaIds = [golfImg.id]
   const chk = makeSection('list')
   chk.eyebrow = 'GOLF GMT CHECKPOINT'
   chk.title = '골프 GMT 체크포인트'
@@ -396,5 +362,5 @@ export function createTemplateProject(templateId: TemplatePresetId): Project {
   info.title = '참가 및 유의 안내'
   info.body = '대회 규정과 취소 규정을 미리 확인해 주세요.'
   info.items = ['대회 규정집 및 홀별 코스맵 출발 전 제공 | 사전 자료 안내', '현지 기상 상황에 따라 티오프 시간 조정 가능 | 대회 운영 규정']
-  return { ...project, name: '골프 대회 · 확장표 기획안', category: '골프', layout: 'golf-standard', page: { title: '중국 위해 유공도 국제 파크골프 대회', subtitle: '5박 6일 대회 참가 & 휴양', destination: '위해', internalMemo: '' }, campaign: createCampaignData(project.id, '골프 대회 · 확장표 기획안'), sections: [cover, chk, prize, info], assets: [golfImg] }
+  return { ...project, name: '골프 대회 · 확장표 기획안', category: '골프', layout: 'golf-standard', page: { title: '중국 위해 유공도 국제 파크골프 대회', subtitle: '5박 6일 대회 참가 & 휴양', destination: '위해', internalMemo: '' }, campaign: createCampaignData(project.id, '골프 대회 · 확장표 기획안'), sections: [cover, chk, prize, info] }
 }

@@ -1,7 +1,7 @@
 {
   "name": "naeil-special-canvas",
   "private": true,
-  "version": "1.0.33",
+  "version": "1.0.34",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -12,7 +12,8 @@
     "prebuild": "npm run version:sync && npm run contract:sync && npm run contract:check",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "vitest run && node --test desktop/getty-lookup.node.cjs"
+    "cli": "node desktop/cli.cjs",
+    "test": "vitest run && node --test desktop/getty-lookup.node.cjs desktop/cli-bridge.node.cjs"
   },
   "dependencies": {
     "html-to-image": "^1.11.13",

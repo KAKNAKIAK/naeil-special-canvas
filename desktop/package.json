@@ -1,6 +1,6 @@
 {
   "name": "naeil-special-canvas-desktop",
-  "version": "1.0.33",
+  "version": "1.0.34",
   "description": "내일스패셜 기획안 캔버스 데스크톱 앱",
   "main": "main.cjs",
   "private": true,
@@ -21,14 +21,27 @@
       "main.cjs",
       "preload.cjs",
       "getty-lookup.cjs",
+      "cli-bridge.cjs",
       "dist/**/*"
     ],
     "extraResources": [
       {
+        "from": "cli.cjs",
+        "to": "cli/cli.cjs"
+      },
+      {
+        "from": "naeil-canvas.cmd",
+        "to": "cli/naeil-canvas.cmd"
+      },
+      {
         "from": "build-assets/naeil-special-canvas-writer",
         "to": "skills/naeil-special-canvas-writer",
         "filter": [
-          "**/*"
+          "SKILL.md",
+          "skill-manifest.json",
+          "agents/**/*",
+          "references/**/*",
+          "scripts/**/*"
         ]
       }
     ],

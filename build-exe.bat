@@ -20,6 +20,9 @@ copy /y "%~dp0desktop\package.json" "%DESKTOPRUNTIME%\package.json" >nul
 copy /y "%~dp0desktop\main.cjs" "%DESKTOPRUNTIME%\main.cjs" >nul
 copy /y "%~dp0desktop\preload.cjs" "%DESKTOPRUNTIME%\preload.cjs" >nul
 copy /y "%~dp0desktop\getty-lookup.cjs" "%DESKTOPRUNTIME%\getty-lookup.cjs" >nul
+copy /y "%~dp0desktop\cli-bridge.cjs" "%DESKTOPRUNTIME%\cli-bridge.cjs" >nul
+copy /y "%~dp0desktop\cli.cjs" "%DESKTOPRUNTIME%\cli.cjs" >nul
+copy /y "%~dp0desktop\naeil-canvas.cmd" "%DESKTOPRUNTIME%\naeil-canvas.cmd" >nul
 if exist "%DESKTOPRUNTIME%\dist" rmdir /s /q "%DESKTOPRUNTIME%\dist"
 xcopy /e /i /y "%~dp0dist" "%DESKTOPRUNTIME%\dist" >nul
 if exist "%DESKTOPRUNTIME%\build-assets\naeil-special-canvas-writer" rmdir /s /q "%DESKTOPRUNTIME%\build-assets\naeil-special-canvas-writer"
