@@ -1,5 +1,5 @@
 // Run with Electron after building the web app. Uses an isolated temporary workspace.
-const { app, BrowserWindow, dialog } = require('electron')
+const { app, BrowserWindow, dialog, net } = require('electron')
 const fs = require('node:fs/promises')
 const path = require('node:path')
 const os = require('node:os')
@@ -12,6 +12,15 @@ app.setPath('userData', path.join(testRoot, 'NaeilSpecialCanvas'))
 const watchdog = setTimeout(() => { console.error('LIVE CHECK TIMEOUT'); app.exit(1) }, 60_000)
 const linkedFile = path.join(testRoot, 'linked-project.json')
 dialog.showSaveDialog = async () => ({ canceled: false, filePath: linkedFile })
+// Deterministic public-page fixtures; no external Getty availability assumption.
+const realFetch = net.fetch.bind(net)
+net.fetch = async (rawUrl, options) => {
+  const url = new URL(rawUrl)
+  if (url.hostname !== 'www.gettyimagesbank.com') return realFetch(rawUrl, options)
+  const code = url.searchParams.get('q') || url.pathname.split('/').pop()
+  const pageUrl = `https://www.gettyimagesbank.com/view/test/${code}`
+  return { ok: true, text: async () => url.pathname === '/s/' ? `<a href="${pageUrl}">result</a>` : `<meta property="og:url" content="${pageUrl}"><meta property="og:title" content="Getty test ${code}"><meta property="og:image" content="https://preview.gettyimagesbank.com/${code}.jpg">` }
+}
 let window
 app.on('browser-window-created', (_event, created) => { window = created })
 require('../desktop/main.cjs')
@@ -100,7 +109,7 @@ app.whenReady().then(async () => {
   await dispatch('project.refresh', [false])
   assert.equal((await get()).project.name, 'Manual CLI refresh')
   assert.ok((await get()).refresh.lastAppliedAt)
-  assert.match(await evaluate('document.querySelector(".refresh-status").textContent'), /\d{2}(?:시 |:)\d{2}(?:분 |:)\d{2}/)
+  assert.match(await evaluate('document.querySelector(".refresh-status").textContent'), /\d{1,2}(?:시 |:)\d{1,2}(?:분 |:)\d{1,2}/)
   await writeExternal('Manual GUI refresh')
   await evaluate(`document.querySelector('[aria-label="연결 JSON 새로고침"]').click()`)
   await waitFor(async () => (await get()).project.name === 'Manual GUI refresh')
@@ -167,6 +176,17 @@ app.whenReady().then(async () => {
   assert.equal((await get()).refresh.autoRefresh, false)
   await evaluate(`document.querySelector('[aria-label="외부 JSON 자동 감지"]').click()`)
   assert.equal((await get()).refresh.autoRefresh, true)
+  await dispatch('asset.addGetty', ['AbC123xy'])
+  assert.ok((await get()).project.assets.some(asset => asset.sourceId === 'AbC123xy'))
+  await evaluate(`document.querySelectorAll('.rail button')[1].click()`)
+  await evaluate(`(() => {
+    const input = document.querySelector('[aria-label="Getty 콘텐츠 번호"]');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'XyZ987ab');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  })()`)
+  await evaluate(`document.querySelector('.getty-number-add-controls button').click()`)
+  await waitFor(async () => (await get()).project.assets.some(asset => asset.sourceId === 'XyZ987ab'))
+  console.log('Getty mixed-case alphanumeric codes: GUI and CLI passed with public-page fixtures')
   await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
   const png = await window.webContents.capturePage()
   const screenshot = path.join(testRoot, 'live-gui.png')

@@ -28,8 +28,22 @@ test('separates an absent ID as not_found', async () => {
   assert.equal(result.pageUrl, '')
 })
 
-test('rejects non-numeric content IDs before requesting Getty', async () => {
+test('rejects punctuation in content IDs before requesting Getty', async () => {
   const result = await lookupGettyContent('4750-42204', async () => { throw new Error('should not request') })
   assert.equal(result.status, 'error')
-  assert.match(result.errorMessage, /숫자만/)
+  assert.match(result.errorMessage, /영문과 숫자/)
+})
+
+test('finds alphanumeric codes and verifies the exact detail code', async () => {
+  const id = 'AbC123xy'
+  const link = `https://www.gettyimagesbank.com/view/photo/${id}`
+  const result = await lookupGettyContent(id, async url => url === searchUrl(id)
+    ? `<a href="/view/photo/${id}9">other</a><a href="${link}">match</a>`
+    : `<meta property="og:url" content="${link}"><meta property="og:image" content="https://preview.gettyimagesbank.com/${id}.jpg">`)
+  assert.equal(result.status, 'found')
+  assert.equal(result.contentId, id)
+  assert.equal(result.pageUrl, link)
+  const mismatch = await lookupGettyContent(id, async url => url === searchUrl(id)
+    ? `<a href="${link}">match</a>` : `<meta property="og:url" content="${link}9">`)
+  assert.equal(mismatch.status, 'error')
 })

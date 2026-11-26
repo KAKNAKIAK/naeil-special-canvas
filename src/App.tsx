@@ -643,7 +643,7 @@ export default function App() {
   }
   async function addGettyImage(rawContentId: string): Promise<boolean> {
     const contentId = rawContentId.trim()
-    if (!/^\d+$/.test(contentId)) { setToast('Getty 콘텐츠 번호는 숫자만 입력하세요.'); return false }
+    if (!/^[a-z0-9]+$/i.test(contentId)) { setToast('Getty 콘텐츠 코드는 영문과 숫자로 입력하세요.'); return false }
     const existing = project.assets.find(asset => asset.provider === 'getty' && asset.sourceId === contentId)
     if (existing) { setToast('이미지 라이브러리에 이미 추가된 Getty 콘텐츠 번호입니다.'); return true }
     const lookup = window.naeilSpecialDesktop?.lookupGettyContent
@@ -791,6 +791,7 @@ export default function App() {
   }
   const editorActions: Record<string, EditorAction> = {
     'project.refresh': { params: ['discardLocalChanges'], run: ([discard]) => refreshProjectFile(boolean(discard)) },
+    'asset.addGetty': { params: ['contentId'], run: async ([contentId]) => { if (!await addGettyImage(text(contentId))) throw new Error('Getty 콘텐츠를 추가하지 못했습니다. 코드와 공개 검색 결과를 확인하세요.') } },
     'project.autoRefresh': { params: ['enabled'], run: ([enabled]) => setAutoRefresh(boolean(enabled)) },
     'project.rename': { params: ['name'], run: ([name]) => updateProject({ name: text(name) }) },
     'project.patch': { params: ['patch'], run: ([patch]) => updateProject(projectPatch(patch)) },
@@ -1020,7 +1021,7 @@ function ImageLibrary({ assets, selected, selectedBox, selectedSpecialMediaIndex
     <p className="image-library-guide">{guide}</p>
     <button className="upload-zone" onClick={onUpload}><Upload/><strong>이미지 불러오기</strong><small>JPG · PNG · WEBP</small></button>
     <div className="library-url-add"><input aria-label="이미지 URL" type="url" placeholder="https://... 이미지 URL" value={imageUrl} onChange={event => setImageUrl(event.target.value)}/><button disabled={!imageUrl.trim()} onClick={() => { if (imageUrl.trim()) { onAddUrl(imageUrl); setImageUrl('') } }}><Link2/> URL 추가</button></div>
-    <div className="getty-number-add-controls"><input aria-label="Getty 콘텐츠 번호" inputMode="numeric" pattern="[0-9]*" placeholder="Getty 콘텐츠 번호" value={gettyContentId} onChange={event => setGettyContentId(event.target.value.replace(/\s/g, ''))} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void addGetty() } }}/><button type="button" disabled={gettyLoading || !gettyContentId.trim()} onClick={() => void addGetty()}>{gettyLoading ? '조회 중' : <><Search/> 조회·추가</>}</button></div>
+    <div className="getty-number-add-controls"><input aria-label="Getty 콘텐츠 번호" pattern="[A-Za-z0-9]*" placeholder="Getty 코드 (영문·숫자)" value={gettyContentId} onChange={event => setGettyContentId(event.target.value.replace(/\s/g, ''))} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void addGetty() } }}/><button type="button" disabled={gettyLoading || !gettyContentId.trim()} onClick={() => void addGetty()}>{gettyLoading ? '조회 중' : <><Search/> 조회·추가</>}</button></div>
     {!assets.length ? <div className="empty-state"><ImageIcon/><p>이미지를 올리면 이곳에서<br/>선택 이미지 자리에 바로 연결할 수 있습니다.</p></div> : <div className="asset-grid">{assets.map(asset => <article key={asset.id} className={connectedIds.includes(asset.id) ? 'connected' : ''}><button draggable title={asset.src.startsWith('http') ? asset.src : asset.name} aria-label={`${asset.name} 연결 또는 해제`} onDragStart={event => { event.dataTransfer.effectAllowed = 'copy'; event.dataTransfer.setData('text/plain', asset.id); event.dataTransfer.setData('application/x-naeil-library-asset', asset.id) }} onClick={() => onConnect(asset.id)}><img src={asset.src} alt={asset.alt || asset.name}/>{connectedIds.includes(asset.id) && <i><Check/></i>}</button></article>)}</div>}
   </>
 }

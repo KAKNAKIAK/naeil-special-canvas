@@ -38,7 +38,7 @@ function metaContent(html, key) {
 function contentIdFromUrl(rawUrl) {
   try {
     const url = new URL(rawUrl, GETTY_ORIGIN)
-    const match = url.pathname.match(/\/view\/[^/]+\/(\d+)\/?$/i)
+    const match = url.pathname.match(/\/view\/[^/]+\/([a-z0-9]+)\/?$/i)
     return match ? match[1] : ''
   } catch {
     return ''
@@ -46,7 +46,7 @@ function contentIdFromUrl(rawUrl) {
 }
 
 function exactDetailUrl(searchHtml, contentId) {
-  const pattern = /href\s*=\s*(["'])([^"']*\/view\/[^"'#?<>\s]+\/\d+[^"']*)\1/gi
+  const pattern = /href\s*=\s*(["'])([^"']*\/view\/[^"'#?<>\s]+\/[a-z0-9]+[^"']*)\1/gi
   let match
   while ((match = pattern.exec(String(searchHtml)))) {
     const candidate = decodeHtml(match[2])
@@ -84,7 +84,7 @@ function validHttpUrl(value) {
  */
 async function lookupGettyContent(rawContentId, fetchHtml) {
   const contentId = String(rawContentId || '').trim()
-  if (!/^\d+$/.test(contentId)) return { contentId, title: '', pageUrl: '', thumbUrl: '', status: 'error', errorMessage: '콘텐츠 번호는 숫자만 입력할 수 있습니다.' }
+  if (!/^[a-z0-9]+$/i.test(contentId)) return { contentId, title: '', pageUrl: '', thumbUrl: '', status: 'error', errorMessage: '콘텐츠 코드는 영문과 숫자로 입력해 주세요.' }
   if (typeof fetchHtml !== 'function') return { contentId, title: '', pageUrl: '', thumbUrl: '', status: 'error', errorMessage: '조회 기능을 준비하지 못했습니다.' }
 
   try {

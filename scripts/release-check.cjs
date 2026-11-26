@@ -50,6 +50,7 @@ async function main() {
       await new Promise(resolve => setTimeout(resolve, 200))
     }
     assert.ok(status?.actions['project.refresh'] && status?.actions['project.autoRefresh'], 'Packaged CLI actions unavailable')
+    assert.ok(status.actions['asset.addGetty'], 'Packaged Getty action unavailable')
     const skillDir = path.join(appData, 'skills', 'naeil-special-canvas-writer')
     assert.equal(await fs.readFile(path.join(skillDir, 'SKILL.md'), 'utf8'), await fs.readFile(path.join(unpacked, 'resources', 'skills', 'naeil-special-canvas-writer', 'SKILL.md'), 'utf8'))
     assert.equal(JSON.parse(await fs.readFile(path.join(skillDir, '.installed-by.json'), 'utf8')).appVersion, version)
