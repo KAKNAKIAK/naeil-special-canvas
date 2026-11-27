@@ -29,7 +29,6 @@ export interface BlockBox {
   rowSpan: number
   zIndex: number
   /** Optional rich text fields for sequential text cards inside image-flow blocks. */
-  eyebrow?: string
   title?: string
   text?: string
   assetIds?: string[]
@@ -76,7 +75,6 @@ export interface BriefImageDirection { assetId: string; role: string }
 /** The editable, contract-shaped brief used before a Canvas project exists. */
 export interface CanvasBriefBlock {
   type: GeneratableSectionType
-  categoryLabel?: string
   title?: string
   body?: string
   items?: string[]
@@ -99,7 +97,7 @@ export interface CanvasBrief {
   approvedAt: string
   updatedAt: string
   product: { name: string; category: Project['category']; layout: Project['layout']; destination: string; subtitle: string }
-  common: { categoryLabel: string; title: string; body: string }
+  common: { title: string; body: string }
   audience: string
   message: string
   /** Why this draft uses its particular block flow. Stored for review, not as a sales claim. */
@@ -148,7 +146,6 @@ export interface MediaAsset {
 export interface Section {
   id: string
   type: SectionType
-  eyebrow: string
   title: string
   body: string
   items: string[]

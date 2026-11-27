@@ -281,7 +281,7 @@ export default function App() {
       const next = normalizeProject(result.project)
       // Reject malformed text before handing externally edited data to React.
       for (const item of [next, next.page, ...next.sections, ...next.sections.flatMap(section => section.iconCards || []), ...next.assets]) {
-        for (const key of ['name', 'title', 'subtitle', 'destination', 'internalMemo', 'eyebrow', 'body', 'note', 'src', 'alt']) {
+        for (const key of ['name', 'title', 'subtitle', 'destination', 'internalMemo', 'body', 'note', 'src', 'alt']) {
           const value = (item as unknown as Record<string, unknown>)[key]
           if (value !== undefined && typeof value !== 'string') throw new Error(`파일의 ${key} 값은 문자열이어야 합니다.`)
         }
@@ -415,7 +415,7 @@ export default function App() {
   }
   function updateLayoutBox(sectionId: string, boxId: string, patch: Partial<BlockBox>) { commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section) return; section.layoutBoxes = normalizeLayoutBoxes(section).map(box => box.id === boxId ? { ...box, ...patch } : box) }, true) }
   function addLayoutBox(sectionId: string, kind: 'text' | 'image') { let boxId = ''; commit(draft => { const section = draft.sections.find(item => item.id === sectionId); if (!section) return; const boxes = normalizeLayoutBoxes(section); const bottom = Math.max(...boxes.map(box => box.row + box.rowSpan), 1); const imageFlow = section.type === 'image'; const next: BlockBox = imageFlow
-      ? { id: crypto.randomUUID(), kind, column: 1, row: bottom + 1, columnSpan: 12, rowSpan: kind === 'text' ? 4 : 6, zIndex: Math.max(...boxes.map(box => box.zIndex), 0) + 1, eyebrow: kind === 'text' ? 'Category Label' : undefined, title: kind === 'text' ? '제목' : undefined, text: kind === 'text' ? '본문' : undefined, assetIds: kind === 'image' ? [] : undefined }
+      ? { id: crypto.randomUUID(), kind, column: 1, row: bottom + 1, columnSpan: 12, rowSpan: kind === 'text' ? 4 : 6, zIndex: Math.max(...boxes.map(box => box.zIndex), 0) + 1, title: kind === 'text' ? '제목' : undefined, text: kind === 'text' ? '본문' : undefined, assetIds: kind === 'image' ? [] : undefined }
       : { id: crypto.randomUUID(), kind, column: kind === 'text' ? 2 : 7, row: bottom + 1, columnSpan: 5, rowSpan: kind === 'text' ? 3 : 5, zIndex: Math.max(...boxes.map(box => box.zIndex), 0) + 1, text: kind === 'text' ? '새 텍스트를 입력하세요.' : undefined, assetIds: kind === 'image' ? [] : undefined }
     section.layoutBoxes = [...boxes, next]; boxId = next.id }); if (boxId) { setSelectedId(sectionId); setSelectedBoxId(boxId); setToast(kind === 'text' ? '텍스트 카드를 추가했습니다.' : '이미지 카드를 추가했습니다.') } }
   function deleteLayoutBox(sectionId: string, boxId: string) {
@@ -949,7 +949,7 @@ function BlockLibrary({ onAdd }: { onAdd: (type: SectionType) => void }) { retur
 
 const ONBOARDING_STEPS = [
   { icon: <Blocks/>, eyebrow: '01 · BLOCKS', title: '블록을 추가해 보세요', body: '텍스트, 이미지, 일정표처럼 담을 내용을 골라 캔버스에 추가하세요.', targets: ['[data-guide="block-library"]', '[data-guide="block-tab"]', '[data-guide="block-add"]'] },
-  { icon: <FileText/>, eyebrow: '02 · COPY', title: '문구를 바로 고쳐 보세요', body: '카테고리 라벨, 제목, 본문을 더블클릭하면 그 자리에서 수정할 수 있습니다.', targets: ['[data-guide="copy-area"]', '[data-guide="canvas"]'] },
+  { icon: <FileText/>, eyebrow: '02 · COPY', title: '문구를 바로 고쳐 보세요', body: '제목, 본문을 더블클릭하면 그 자리에서 수정할 수 있습니다.', targets: ['[data-guide="copy-area"]', '[data-guide="canvas"]'] },
   { icon: <ImageIcon/>, eyebrow: '03 · IMAGE', title: '이미지를 등록해 보세요', body: '이 패널에서 내 PC의 이미지 파일을 올리거나 이미지 URL을 붙여 넣으세요. 등록한 이미지는 다른 블록에서도 다시 사용할 수 있습니다.', targets: ['[data-guide="image-panel"]', '[data-guide="image-box"]', '[data-guide="image-tab"]'] },
   { icon: <Layers/>, eyebrow: '04 · LAYERS', title: '블록 순서를 정리하세요', body: '레이어에서 블록의 순서와 묶음을 관리합니다. 위·아래 이동으로 순서를 바꾸고, 이어지는 블록은 그룹으로 묶어 보세요.', targets: ['[data-guide="layer-tab"]'] },
   { icon: <Download/>, eyebrow: '05 · OUTPUT', title: '확인한 뒤 내보내세요', body: '미리보기로 전체를 확인한 다음 독립 HTML, 로드용 JSON, 디자이너 전달 ZIP으로 내보냅니다.', targets: ['[data-guide="output"]'] },

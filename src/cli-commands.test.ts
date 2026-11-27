@@ -18,6 +18,8 @@ describe('shared GUI and CLI editing', () => {
   it('rejects invalid input before dispatching any edit', () => {
     let calls = 0
     const actions = { edit: { params: ['patch'], run: ([patch]: unknown[]) => { sectionPatch(patch); calls++ } } }
+    expect(() => dispatchEditorAction(actions, { action: 'edit', args: [{ eyebrow: 'RETIRED' }] }, 1, false)).toThrow('지원하지 않는 필드')
+    expect(() => dispatchEditorAction(actions, { action: 'edit', args: [{ categoryLabel: 'RETIRED' }] }, 1, false)).toThrow('지원하지 않는 필드')
     expect(() => dispatchEditorAction(actions, { action: 'edit', args: [{ items: [42] }] }, 1, false)).toThrow()
     expect(() => dispatchEditorAction(actions, { action: 'edit', args: [{}], expectedRevision: 0 }, 1, false)).toThrow('REVISION_CONFLICT')
     expect(() => dispatchEditorAction(actions, { action: 'edit', args: [{}] }, 1, true)).toThrow('읽기 전용')

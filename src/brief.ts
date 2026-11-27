@@ -1,9 +1,8 @@
-import { createCampaignData, makeSection, normalizeLayoutBoxes } from './catalog'
+import { createCampaignData, makeSection, normalizeLayoutBoxes, normalizeProject } from './catalog'
 import { CURRENT_CATALOG_VERSION, CURRENT_SCHEMA_VERSION } from './migrations'
 import type { BriefCompositionStrategy, BriefFact, BriefWorkspace, CanvasBrief, CanvasBriefBlock, GeneratableSectionType, Project, Section } from './types'
 
 const GENERATABLE_TYPES = new Set<GeneratableSectionType>(['text', 'image', 'list', 'table', 'icon-card', 'menu-zigzag', 'timeline', 'hero-cover', 'route-bar', 'option-grid', 'vs-compare', 'service-bar'])
-const CATEGORY_LABEL: Record<Project['category'], string> = { 금까기: 'NAEIL GOLD', 우리만: 'NAEIL PRIVATE', 특별한: 'NAEIL SPECIAL', 골프: 'NAEIL GOLF' }
 const CATEGORY_AUDIENCE: Record<Project['category'], string> = { 금까기: '자유롭지만 핵심 구성을 놓치고 싶지 않은 여행자', 우리만: '일행만의 여정을 원하는 소규모 고객', 특별한: '테마와 경험을 중심으로 여행을 고르는 고객', 골프: '라운드와 휴식을 함께 계획하는 골프 여행객' }
 
 export function createBriefWorkspace(): BriefWorkspace {
@@ -117,17 +116,17 @@ function blockFor(type: GeneratableSectionType, common: CanvasBrief['common'], i
   const focus = signals.confirmed[0]?.field || '상품 구성'
   if (type === 'text') return { type, ...common }
   if (type === 'image') return {
-    type, categoryLabel: common.categoryLabel, title: `${focus} 이미지`, body: '사진과 설명을 함께 배치해 보세요.', mediaIds: imageIds,
+    type, title: `${focus} 이미지`, body: '사진과 설명을 함께 배치해 보세요.', mediaIds: imageIds,
     mediaLayout: imageIds.length >= 4 ? 'grid-3' : imageIds.length >= 2 ? 'grid-2' : 'auto',
     contentLayout: plan.strategy === 'photo-led' ? 'media-top' : plan.strategy.includes('schedule') ? 'media-right' : 'text-top',
   }
   if (type === 'list') return {
-    type, categoryLabel: common.categoryLabel, title: plan.strategy === 'benefit-led' ? '포함 사항과 특전' : '확인된 포인트',
+    type, title: plan.strategy === 'benefit-led' ? '포함 사항과 특전' : '확인된 포인트',
     body: '확인된 내용입니다.', items: factItems.length ? factItems : ['확인된 상품 정보를 추가하세요.'], listStyle: plan.strategy === 'benefit-led' ? 'offer' : 'list',
   }
   if (type === 'table') {
     const rows = scheduleRows(signals)
-    return { type, categoryLabel: common.categoryLabel, title: '일정 한눈에 보기', body: '원본 일정에서 확인한 이동과 체험을 정리했습니다.', tableHeaders: ['구분', '내용'], tableRows: rows.length ? rows : [['DAY 1', '일정 원문을 확인한 뒤 입력하세요.']] }
+    return { type, title: '일정 한눈에 보기', body: '원본 일정에서 확인한 이동과 체험을 정리했습니다.', tableHeaders: ['구분', '내용'], tableRows: rows.length ? rows : [['DAY 1', '일정 원문을 확인한 뒤 입력하세요.']] }
   }
   if (type === 'timeline') {
     const timelineItems = signals.scheduleLines.slice(0, 8).map((line, index) => {
@@ -135,25 +134,25 @@ function blockFor(type: GeneratableSectionType, common: CanvasBrief['common'], i
       const copy = titleAndBody(line)
       return `${time} | ${copy.title} | ${copy.body}`
     })
-    return { type, categoryLabel: common.categoryLabel, title: '시간별 일정', body: '시간 정보가 있는 원본 일정부터 배치했습니다.', items: timelineItems.length ? timelineItems : ['00:00 | 일정 제목 | 원본 일정표를 확인한 뒤 입력하세요.'], timelineDayStarts: [0], timelineHeroVisible: true, mediaIds: ['', ...imageIds.slice(0, Math.max(1, timelineItems.length))] }
+    return { type, title: '시간별 일정', body: '시간 정보가 있는 원본 일정부터 배치했습니다.', items: timelineItems.length ? timelineItems : ['00:00 | 일정 제목 | 원본 일정표를 확인한 뒤 입력하세요.'], timelineDayStarts: [0], timelineHeroVisible: true, mediaIds: ['', ...imageIds.slice(0, Math.max(1, timelineItems.length))] }
   }
   if (type === 'icon-card') {
     const cards = (signals.confirmed.length ? signals.confirmed : [{ field: '확인 포인트', value: '상품 정보를 추가하세요.' }]).slice(0, 6).map((fact, index) => ({ id: `brief-card-${index + 1}`, icon: index % 3 === 0 ? 'calendar' : index % 3 === 1 ? 'hotel' : 'car', title: fact.field, body: fact.value, tone: index % 3 === 0 ? 'teal' as const : index % 3 === 1 ? 'orange' as const : 'green' as const }))
-    return { type, categoryLabel: common.categoryLabel, title: '선택 이유', body: '핵심 조건을 카드로 나눠 확인하세요.', iconCards: cards }
+    return { type, title: '선택 이유', body: '핵심 조건을 카드로 나눠 확인하세요.', iconCards: cards }
   }
   if (type === 'hero-cover') return { type, ...common, items: factItems.slice(0, 3), mediaIds: imageIds.slice(0, 1) }
-  if (type === 'route-bar') return { type, categoryLabel: common.categoryLabel, title: '한눈에 보는 황금 동선', body: '주요 방문 도시 흐름입니다.', items: ['출발 도시', '핵심 경유지', '도착 도시'], mediaIds: imageIds.slice(0, 1) }
-  if (type === 'option-grid') return { type, categoryLabel: common.categoryLabel, title: '선택 프로그램 택 1', body: '원하는 체험을 선택하세요.', items: factItems.length ? factItems.slice(0, 8) : ['선택 체험 1', '선택 체험 2'], mediaIds: imageIds.slice(0, 8) }
-  if (type === 'vs-compare') return { type, categoryLabel: common.categoryLabel, title: '구성 비교', body: '두 가지 옵션을 비교해 보세요.', items: ['옵션 A | 첫 번째 구성 | 핵심 장점을 입력하세요.', '옵션 B | 두 번째 구성 | 핵심 장점을 입력하세요.'], mediaIds: imageIds.slice(0, 2) }
-  if (type === 'service-bar') return { type, categoryLabel: common.categoryLabel, title: '스페셜 서비스', body: '기본 제공 혜택입니다.', items: factItems.length ? factItems.map(item => `${item} | 핵심 혜택`) : ['맞춤 일정 설계 | 개별 케어'] }
+  if (type === 'route-bar') return { type, title: '한눈에 보는 황금 동선', body: '주요 방문 도시 흐름입니다.', items: ['출발 도시', '핵심 경유지', '도착 도시'], mediaIds: imageIds.slice(0, 1) }
+  if (type === 'option-grid') return { type, title: '선택 프로그램 택 1', body: '원하는 체험을 선택하세요.', items: factItems.length ? factItems.slice(0, 8) : ['선택 체험 1', '선택 체험 2'], mediaIds: imageIds.slice(0, 8) }
+  if (type === 'vs-compare') return { type, title: '구성 비교', body: '두 가지 옵션을 비교해 보세요.', items: ['옵션 A | 첫 번째 구성 | 핵심 장점을 입력하세요.', '옵션 B | 두 번째 구성 | 핵심 장점을 입력하세요.'], mediaIds: imageIds.slice(0, 2) }
+  if (type === 'service-bar') return { type, title: '스페셜 서비스', body: '기본 제공 혜택입니다.', items: factItems.length ? factItems.map(item => `${item} | 핵심 혜택`) : ['맞춤 일정 설계 | 개별 케어'] }
   const pairs = visualItems.slice(0, Math.max(1, Math.min(imageIds.length || 1, 4))).map(titleAndBody)
-  return { type, categoryLabel: common.categoryLabel, title: '공간과 경험', body: '이미지와 연결할 설명을 원본 자료에서 골랐습니다.', items: pairs.length ? pairs.map(pair => `${pair.title} | ${pair.body}`) : ['제목 | 원본 자료의 설명을 입력하세요.'], mediaIds: imageIds.slice(0, Math.max(1, pairs.length)), menuItemReversed: pairs.map((_, index) => index % 2 === 1) }
+  return { type, title: '공간과 경험', body: '이미지와 연결할 설명을 원본 자료에서 골랐습니다.', items: pairs.length ? pairs.map(pair => `${pair.title} | ${pair.body}`) : ['제목 | 원본 자료의 설명을 입력하세요.'], mediaIds: imageIds.slice(0, Math.max(1, pairs.length)), menuItemReversed: pairs.map((_, index) => index % 2 === 1) }
 }
 
 export function buildDraftBrief(project: Project, workspace: BriefWorkspace): CanvasBrief {
   const product = { name: project.name.trim() || '새 내일스패셜 기획안', category: project.category, layout: project.layout, destination: project.page.destination.trim(), subtitle: project.page.subtitle.trim() }
   const lead = draftLead(workspace.rawText)
-  const common = { categoryLabel: CATEGORY_LABEL[product.category], title: product.name, body: lead }
+  const common = { title: product.name, body: lead }
   const imageIds = workspace.selectedImageIds.filter(id => project.assets.some(asset => asset.id === id))
   const plan = routeFor(workspace.rawText, workspace.facts, imageIds, workspace.compositionHint)
   const blockOrder = plan.order
@@ -184,14 +183,13 @@ export function approveBrief(brief: CanvasBrief): CanvasBrief {
 
 function applyBlock(block: CanvasBriefBlock): Section {
   const section = makeSection(block.type)
-  section.eyebrow = block.categoryLabel || ''
   section.title = block.title || ''
   section.body = block.body || ''
   section.items = [...(block.items || section.items)]
   section.mediaIds = [...(block.mediaIds || [])]
   section.mediaLayout = block.mediaLayout || section.mediaLayout
   section.contentLayout = block.contentLayout || section.contentLayout
-  section.layoutBoxes = block.layoutBoxes?.length ? block.layoutBoxes : normalizeLayoutBoxes(section)
+  section.layoutBoxes = normalizeLayoutBoxes({ ...section, layoutBoxes: block.layoutBoxes?.length ? block.layoutBoxes : undefined })
   section.tableHeaders = block.tableHeaders || section.tableHeaders
   section.tableRows = block.tableRows || section.tableRows
   section.iconCards = block.iconCards || section.iconCards
@@ -221,5 +219,5 @@ export function buildProjectFromApprovedBrief(current: Project, brief: CanvasBri
   project.campaign.campaign_id = project.id
   project.campaign.product_name = project.name
   project.campaign.tracking.promotion_id = project.id
-  return project
+  return normalizeProject(project)
 }

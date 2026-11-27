@@ -42,11 +42,10 @@
   "$defs": {
     "section": {
       "type": "object",
-      "required": ["id", "type", "eyebrow", "title", "body", "items", "mediaIds", "mediaLayout", "contentLayout"],
+      "required": ["id", "type", "title", "body", "items", "mediaIds", "mediaLayout", "contentLayout"],
       "properties": {
         "id": { "type": "string" },
         "type": { "type": "string", "enum": ["text", "image", "list", "table", "icon-card", "timeline", "menu-zigzag", "offer", "caption-grid", "hero-cover", "route-bar", "option-grid", "vs-compare", "service-bar"] },
-        "eyebrow": { "type": "string" },
         "title": { "type": "string" },
         "body": { "type": "string" },
         "items": { "type": "array", "items": { "type": "string" } },

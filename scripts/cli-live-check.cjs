@@ -176,6 +176,25 @@ app.whenReady().then(async () => {
   assert.equal((await get()).refresh.autoRefresh, false)
   await evaluate(`document.querySelector('[aria-label="외부 JSON 자동 감지"]').click()`)
   assert.equal((await get()).refresh.autoRefresh, true)
+  const legacyLabels = (await get()).project
+  for (const section of legacyLabels.sections) {
+    section.eyebrow = 'REMOVED_CATEGORY_LABEL'
+    for (const box of section.layoutBoxes || []) box.eyebrow = 'REMOVED_CARD_LABEL'
+  }
+  await dispatch('project.autoRefresh', [false])
+  await fs.writeFile(linkedFile, JSON.stringify(legacyLabels), 'utf8')
+  await dispatch('project.refresh', [false])
+  const withoutLabels = (await get()).project
+  assert.ok(withoutLabels.sections.every(section => !Object.hasOwn(section, 'eyebrow') && (section.layoutBoxes || []).every(box => !Object.hasOwn(box, 'eyebrow'))))
+  assert.ok(!await evaluate('document.querySelector(".artboard").textContent.includes("REMOVED_CATEGORY_LABEL")'))
+  assert.doesNotMatch((await dispatch('export.html')).result, /REMOVED_CATEGORY_LABEL|REMOVED_CARD_LABEL/)
+  await assert.rejects(dispatch('section.update', [withoutLabels.sections[0].id, { eyebrow: 'forbidden' }]))
+  for (const type of (await sendCommand(connection, 'status')).sectionTypes) {
+    await dispatch('section.add', [type])
+    assert.ok(!await evaluate('document.querySelector(".inspector-body").textContent.includes("Category Label")'))
+    await dispatch('history.undo')
+  }
+  console.log('Category labels removed: legacy load, GUI block inspectors, CLI rejection and HTML passed')
   await dispatch('asset.addGetty', ['AbC123xy'])
   assert.ok((await get()).project.assets.some(asset => asset.sourceId === 'AbC123xy'))
   await evaluate(`document.querySelectorAll('.rail button')[1].click()`)
@@ -187,7 +206,8 @@ app.whenReady().then(async () => {
   await evaluate(`document.querySelector('.getty-number-add-controls button').click()`)
   await waitFor(async () => (await get()).project.assets.some(asset => asset.sourceId === 'XyZ987ab'))
   console.log('Getty mixed-case alphanumeric codes: GUI and CLI passed with public-page fixtures')
-  await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+  // Background windows can suspend animation frames while another app has focus.
+  await new Promise(resolve => setTimeout(resolve, 250))
   const png = await window.webContents.capturePage()
   const screenshot = path.join(testRoot, 'live-gui.png')
   await fs.writeFile(screenshot, png.toPNG())

@@ -37,25 +37,25 @@ export const ICON_CARD_OPTIONS = [
 
 export const iconCardOption = (icon: string) => ICON_CARD_OPTIONS.find(option => option.value === icon) || ICON_CARD_OPTIONS[8]
 
-export const BLOCK_EDITOR_COPY: Record<SectionType, { lead: string; eyebrow: string; title: string; body: string; eyebrowPlaceholder: string; titlePlaceholder: string; bodyPlaceholder: string }> = {
-  text: { lead: '한 가지 메시지와 설명을 이어 쓰는 블록입니다.', eyebrow: '상단 분류', title: '핵심 메시지', body: '본문', eyebrowPlaceholder: '예: Category Label', titlePlaceholder: '고객에게 먼저 보일 핵심 문장', bodyPlaceholder: '메시지를 뒷받침하는 설명을 입력하세요.' },
-  image: { lead: '이미지는 왼쪽 라이브러리에서 연결하고, 이곳에는 이미지 맥락만 작성합니다.', eyebrow: '이미지 분류', title: '이미지 섹션 제목', body: '이미지 소개·캡션', eyebrowPlaceholder: '예: HOTEL VIEW', titlePlaceholder: '예: 객실에서 만나는 바다 전망', bodyPlaceholder: '사진에서 보여 주고 싶은 장면과 특징을 입력하세요.' },
-  list: { lead: '핵심 포인트를 짧게 정리하는 블록입니다.', eyebrow: '포인트 분류', title: '목록 제목', body: '목록 도입 문장', eyebrowPlaceholder: '예: WHY THIS TRIP', titlePlaceholder: '예: 여행을 더 편하게 만드는 세 가지', bodyPlaceholder: '목록을 읽기 전에 필요한 짧은 안내를 입력하세요.' },
-  table: { lead: '일정, 조건, 비교처럼 행과 열로 봐야 하는 정보에 씁니다.', eyebrow: '카테고리 라벨', title: '제목', body: '본문', eyebrowPlaceholder: '예: TRIP SCHEDULE', titlePlaceholder: '예: 여행 일정 한눈에 보기', bodyPlaceholder: '표를 읽는 방법이나 기준을 짧게 입력하세요.' },
-  'icon-card': { lead: '아이콘 카드로 상품의 선택 이유나 서비스 장점을 시각적으로 보여 줍니다.', eyebrow: '카테고리 라벨', title: '제목', body: '본문', eyebrowPlaceholder: '예: OUR PROMISE', titlePlaceholder: '예: 우리끼리만 떠나는 패키지', bodyPlaceholder: '카드 전체를 설명하는 한 문장을 입력하세요.' },
-  offer: { lead: '특전, 포함 사항, 적용 조건을 한데 모아 강조하는 블록입니다.', eyebrow: '특전 분류', title: '특전 제목', body: '적용 안내', eyebrowPlaceholder: '예: NAEIL BENEFIT', titlePlaceholder: '예: 내일투어 단독 특전', bodyPlaceholder: '기간, 적용 대상, 유의사항을 짧게 안내하세요.' },
-  'caption-grid': { lead: '사진 4장과 짧은 캡션을 2단 그리드로 보여 주는 포인트 소개 블록입니다.', eyebrow: '상단 아이콘', title: '그리드 제목', body: '보조 설명', eyebrowPlaceholder: '예: ☂', titlePlaceholder: '예: 리조트 집중 포인트', bodyPlaceholder: '필요할 때만 짧은 설명을 입력하세요.' },
-  'menu-zigzag': { lead: '이미지와 설명을 좌우로 보여 주는 블록입니다. 항목마다 이미지와 텍스트 위치를 바꿀 수 있습니다.', eyebrow: 'Category Label', title: '제목', body: '본문', eyebrowPlaceholder: '예: 도쿄', titlePlaceholder: '예: 도쿄 미식 추천 메뉴', bodyPlaceholder: '필요할 때만 짧은 설명을 입력하세요.' },
-  timeline: { lead: '대표 이미지와 시간축을 함께 보여 주는 장거리·테마 일정 블록입니다.', eyebrow: 'Category Label', title: '제목', body: '본문', eyebrowPlaceholder: '예: CHOCOLATE TRAIN', titlePlaceholder: '예: 스위스 패밀리 금까기', bodyPlaceholder: '일정 전체를 소개하는 핵심 내용을 입력하세요.' },
-  'hero-cover': { lead: '배경 이미지 위에 대제목·부제·핵심 뱃지를 올리는 커버 히어로 블록입니다.', eyebrow: '상단 라벨', title: '대표 제목', body: '소개 문구', eyebrowPlaceholder: '예: HONEYMOON SPECIAL', titlePlaceholder: '예: 발리 프라이빗 허니문', bodyPlaceholder: '대표 소개 문장을 입력하세요.' },
-  'route-bar': { lead: '방문 도시를 가로 연결선으로 보여 주고 선택적으로 지도 이미지를 붙입니다.', eyebrow: '동선 라벨', title: '동선 제목', body: '동선 안내', eyebrowPlaceholder: '예: GOLDEN ROUTE', titlePlaceholder: '예: 한눈에 보는 황금 동선', bodyPlaceholder: '이동 방식과 동선 특징을 입력하세요.' },
-  'option-grid': { lead: '원형 썸네일 그리드로 선택형 프로그램(택1)을 한눈에 보여 줍니다.', eyebrow: '혜택 라벨', title: '선택 혜택 제목', body: '선택 조건', eyebrowPlaceholder: '예: BENEFIT 01', titlePlaceholder: '예: 원데이 프로그램 택 1', bodyPlaceholder: '선택 가능 개수와 조건을 입력하세요.' },
-  'vs-compare': { lead: '두 가지 여행 스타일·패스·시즌을 좌우 카드와 VS 배지로 비교합니다.', eyebrow: '비교 라벨', title: '비교 제목', body: '비교 요약', eyebrowPlaceholder: '예: COMPARE', titlePlaceholder: '예: 실버패스 vs 골드패스', bodyPlaceholder: '비교 포인트를 짧게 입력하세요.' },
-  'service-bar': { lead: '번호 배지 + 좌측 설명 + 우측 핵심 키워드로 공통 서비스를 정리합니다.', eyebrow: '서비스 라벨', title: '서비스 제목', body: '안내 문구', eyebrowPlaceholder: '예: SPECIAL SERVICE', titlePlaceholder: '예: 내일투어 스페셜 서비스', bodyPlaceholder: '공통 제공 혜택을 짧게 안내하세요.' },
+export const BLOCK_EDITOR_COPY: Record<SectionType, { lead: string; title: string; body: string; titlePlaceholder: string; bodyPlaceholder: string }> = {
+  text: { lead: '한 가지 메시지와 설명을 이어 쓰는 블록입니다.', title: '핵심 메시지', body: '본문', titlePlaceholder: '고객에게 먼저 보일 핵심 문장', bodyPlaceholder: '메시지를 뒷받침하는 설명을 입력하세요.' },
+  image: { lead: '이미지는 왼쪽 라이브러리에서 연결하고, 이곳에는 이미지 맥락만 작성합니다.', title: '이미지 섹션 제목', body: '이미지 소개·캡션', titlePlaceholder: '예: 객실에서 만나는 바다 전망', bodyPlaceholder: '사진에서 보여 주고 싶은 장면과 특징을 입력하세요.' },
+  list: { lead: '핵심 포인트를 짧게 정리하는 블록입니다.', title: '목록 제목', body: '목록 도입 문장', titlePlaceholder: '예: 여행을 더 편하게 만드는 세 가지', bodyPlaceholder: '목록을 읽기 전에 필요한 짧은 안내를 입력하세요.' },
+  table: { lead: '일정, 조건, 비교처럼 행과 열로 봐야 하는 정보에 씁니다.', title: '제목', body: '본문', titlePlaceholder: '예: 여행 일정 한눈에 보기', bodyPlaceholder: '표를 읽는 방법이나 기준을 짧게 입력하세요.' },
+  'icon-card': { lead: '아이콘 카드로 상품의 선택 이유나 서비스 장점을 시각적으로 보여 줍니다.', title: '제목', body: '본문', titlePlaceholder: '예: 우리끼리만 떠나는 패키지', bodyPlaceholder: '카드 전체를 설명하는 한 문장을 입력하세요.' },
+  offer: { lead: '특전, 포함 사항, 적용 조건을 한데 모아 강조하는 블록입니다.', title: '특전 제목', body: '적용 안내', titlePlaceholder: '예: 내일투어 단독 특전', bodyPlaceholder: '기간, 적용 대상, 유의사항을 짧게 안내하세요.' },
+  'caption-grid': { lead: '사진 4장과 짧은 캡션을 2단 그리드로 보여 주는 포인트 소개 블록입니다.', title: '그리드 제목', body: '보조 설명', titlePlaceholder: '예: 리조트 집중 포인트', bodyPlaceholder: '필요할 때만 짧은 설명을 입력하세요.' },
+  'menu-zigzag': { lead: '이미지와 설명을 좌우로 보여 주는 블록입니다. 항목마다 이미지와 텍스트 위치를 바꿀 수 있습니다.', title: '제목', body: '본문', titlePlaceholder: '예: 도쿄 미식 추천 메뉴', bodyPlaceholder: '필요할 때만 짧은 설명을 입력하세요.' },
+  timeline: { lead: '대표 이미지와 시간축을 함께 보여 주는 장거리·테마 일정 블록입니다.', title: '제목', body: '본문', titlePlaceholder: '예: 스위스 패밀리 금까기', bodyPlaceholder: '일정 전체를 소개하는 핵심 내용을 입력하세요.' },
+  'hero-cover': { lead: '배경 이미지 위에 대제목·부제·핵심 뱃지를 올리는 커버 히어로 블록입니다.', title: '대표 제목', body: '소개 문구', titlePlaceholder: '예: 발리 프라이빗 허니문', bodyPlaceholder: '대표 소개 문장을 입력하세요.' },
+  'route-bar': { lead: '방문 도시를 가로 연결선으로 보여 주고 선택적으로 지도 이미지를 붙입니다.', title: '동선 제목', body: '동선 안내', titlePlaceholder: '예: 한눈에 보는 황금 동선', bodyPlaceholder: '이동 방식과 동선 특징을 입력하세요.' },
+  'option-grid': { lead: '원형 썸네일 그리드로 선택형 프로그램(택1)을 한눈에 보여 줍니다.', title: '선택 혜택 제목', body: '선택 조건', titlePlaceholder: '예: 원데이 프로그램 택 1', bodyPlaceholder: '선택 가능 개수와 조건을 입력하세요.' },
+  'vs-compare': { lead: '두 가지 여행 스타일·패스·시즌을 좌우 카드와 VS 배지로 비교합니다.', title: '비교 제목', body: '비교 요약', titlePlaceholder: '예: 실버패스 vs 골드패스', bodyPlaceholder: '비교 포인트를 짧게 입력하세요.' },
+  'service-bar': { lead: '번호 배지 + 좌측 설명 + 우측 핵심 키워드로 공통 서비스를 정리합니다.', title: '서비스 제목', body: '안내 문구', titlePlaceholder: '예: 내일투어 스페셜 서비스', bodyPlaceholder: '공통 제공 혜택을 짧게 안내하세요.' },
 }
 
 export type InlineTag = 'span' | 'p' | 'h2' | 'h3' | 'div' | 'strong' | 'b' | 'figcaption'
-export type CommonTextValue = { eyebrow: string; title: string; body: string }
+export type CommonTextValue = { title: string; body: string }
 
 export function InlineText({ tag = 'span', value, className = '', multiline = false, readOnly = false, onEditStart, onChange, children }: { tag?: InlineTag; value: string; className?: string; multiline?: boolean; readOnly?: boolean; onEditStart?: () => void; onChange: (value: string) => void; children?: React.ReactNode }) {
   const [editing, setEditing] = useState(false)
@@ -162,7 +162,6 @@ export function RichTextEditor({ label, value, onChange, rows = 3 }: { label: st
 
 export function CommonText({ value, readOnly, onChange, onEditStart, className = '', children }: { value: CommonTextValue; readOnly: boolean; onChange: (patch: Partial<CommonTextValue>) => void; onEditStart?: () => void; className?: string; children?: React.ReactNode }) {
   return <div className={`section-text-content ${className}`.trim()} data-guide="copy-area">
-    {!isRichTextEmpty(value.eyebrow) && <InlineText tag="p" className="section-eyebrow" value={value.eyebrow} readOnly={readOnly} onEditStart={onEditStart} onChange={eyebrow => onChange({ eyebrow })}/>}
     {!isRichTextEmpty(value.title) && <RichText tag="h2" value={value.title} readOnly={readOnly} onEditStart={onEditStart} onChange={title => onChange({ title })}/>}
     {!isRichTextEmpty(value.body) && <RichText tag="p" className="section-body" value={value.body} readOnly={readOnly} onEditStart={onEditStart} onChange={body => onChange({ body })}/>}
     {children}

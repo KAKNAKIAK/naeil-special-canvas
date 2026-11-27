@@ -90,13 +90,13 @@ function isLegacySectionType(value: unknown) {
 }
 
 export function makeSection(type: SectionType): Section {
-  const placeholder = { eyebrow: 'Category Label', title: '제목', body: '본문' }
+  const placeholder = { title: '제목', body: '본문' }
   const iconCards: IconCardItem[] = [
     { id: crypto.randomUUID(), icon: 'calendar', title: '전문 가이드 동행', body: '여행의 핵심 순간을 더 편안하게 안내합니다.', tone: 'teal' },
     { id: crypto.randomUUID(), icon: 'hotel', title: '엄선한 숙소', body: '일정과 이동을 고려해 편안한 휴식을 준비합니다.', tone: 'orange' },
     { id: crypto.randomUUID(), icon: 'car', title: '전용 이동 서비스', body: '여행 흐름에 맞는 이동을 제공합니다.', tone: 'green' },
   ]
-  const defaults: Record<SectionType, Pick<Section, 'eyebrow' | 'title' | 'body' | 'items'>> = {
+  const defaults: Record<SectionType, Pick<Section, 'title' | 'body' | 'items'>> = {
     text: { ...placeholder, items: [] },
     image: { ...placeholder, items: [] },
     list: { ...placeholder, items: ['첫 번째 핵심 내용', '두 번째 핵심 내용', '세 번째 핵심 내용'] },
@@ -105,17 +105,17 @@ export function makeSection(type: SectionType): Section {
     offer: { ...placeholder, items: ['첫 번째 특전 또는 조건', '두 번째 특전 또는 조건', '세 번째 특전 또는 조건'] },
     'caption-grid': { ...placeholder, items: ['제목 | 설명', '제목 | 설명'] },
     'menu-zigzag': { ...placeholder, items: ['제목 | 본문'] },
-    timeline: { eyebrow: '01. 골든패스 초콜릿 열차', title: '스위스 패밀리 금까기 상품 특전', body: 'The chocolate train\n매년 5월부터 9월까지 한시적 운행되는 골든패스 초콜릿 열차는 몽트뢰에서부터 밀크 초콜릿을 처음으로 만든 까이에 초콜릿 박물관과 그뤼에르 치즈 마을을 방문하는 세계 유일한 초콜릿 테마 열차', items: ['09:50 | 몽트뢰 출발 | 초콜릿 열차에서 제공하는 따뜻한 음료와 크루아상으로 간단한 아침 식사', '10:50 | 초콜릿 버스 환승 | 몽보봉 도착 후 초콜릿 버스로 환승', '11:10 | 그뤼에르 치즈 공장 | La Maison du Gruyère 방문', '12:10 | 그뤼에르 마을 | 자유시간(약 2시간)\\n* 추천 일정\\n- 그뤼에르 성 방문\\n- 퐁뒤, 라클렛 등 치즈 요리 점심'] },
-    'hero-cover': { eyebrow: 'NAEIL SPECIAL', title: '상품 대표 제목', body: '고객의 시선을 끄는 핵심 소개 문장을 입력하세요.', items: ['NO쇼핑 · NO옵션', '단독 가이드', '특급 호텔'] },
-    'route-bar': { eyebrow: 'GOLDEN ROUTE', title: '한눈에 보는 황금 동선', body: '주요 방문 도시와 이동 흐름을 간결하게 보여 줍니다.', items: ['출발 도시', '핵심 경유지', '주요 관광지', '도착 도시'] },
-    'option-grid': { eyebrow: 'SPECIAL PICK', title: '원데이 프로그램 택 1', body: '원하는 체험을 선택해 즐기는 맞춤 특전입니다.', items: ['선택 체험 1', '선택 체험 2', '선택 체험 3', '선택 체험 4'] },
-    'vs-compare': { eyebrow: 'COMPARE', title: '두 가지 스타일 비교', body: '여행 취향에 맞는 구성을 한눈에 비교해 보세요.', items: ['포인트 A | 옵션 A 제목 | 첫 번째 구성의 장점을 입력하세요.', '포인트 B | 옵션 B 제목 | 두 번째 구성의 장점을 입력하세요.'] },
-    'service-bar': { eyebrow: 'SPECIAL SERVICE', title: '내일투어 스페셜 서비스', body: '예약 고객께 기본 제공되는 핵심 케어입니다.', items: ['항공·호텔 조율로 쉽고 빠른 여행 준비 | 개별 맞춤 케어', '지역별 교통패스·입장권 추천 및 예약대행 | 패스·티켓 대행', '여행자보험 가입 및 현지 비상연락망 지원 | 안심 여행 케어'] },
+    timeline: { title: '스위스 패밀리 금까기 상품 특전', body: 'The chocolate train\n매년 5월부터 9월까지 한시적 운행되는 골든패스 초콜릿 열차는 몽트뢰에서부터 밀크 초콜릿을 처음으로 만든 까이에 초콜릿 박물관과 그뤼에르 치즈 마을을 방문하는 세계 유일한 초콜릿 테마 열차', items: ['09:50 | 몽트뢰 출발 | 초콜릿 열차에서 제공하는 따뜻한 음료와 크루아상으로 간단한 아침 식사', '10:50 | 초콜릿 버스 환승 | 몽보봉 도착 후 초콜릿 버스로 환승', '11:10 | 그뤼에르 치즈 공장 | La Maison du Gruyère 방문', '12:10 | 그뤼에르 마을 | 자유시간(약 2시간)\\n* 추천 일정\\n- 그뤼에르 성 방문\\n- 퐁뒤, 라클렛 등 치즈 요리 점심'] },
+    'hero-cover': { title: '상품 대표 제목', body: '고객의 시선을 끄는 핵심 소개 문장을 입력하세요.', items: ['NO쇼핑 · NO옵션', '단독 가이드', '특급 호텔'] },
+    'route-bar': { title: '한눈에 보는 황금 동선', body: '주요 방문 도시와 이동 흐름을 간결하게 보여 줍니다.', items: ['출발 도시', '핵심 경유지', '주요 관광지', '도착 도시'] },
+    'option-grid': { title: '원데이 프로그램 택 1', body: '원하는 체험을 선택해 즐기는 맞춤 특전입니다.', items: ['선택 체험 1', '선택 체험 2', '선택 체험 3', '선택 체험 4'] },
+    'vs-compare': { title: '두 가지 스타일 비교', body: '여행 취향에 맞는 구성을 한눈에 비교해 보세요.', items: ['포인트 A | 옵션 A 제목 | 첫 번째 구성의 장점을 입력하세요.', '포인트 B | 옵션 B 제목 | 두 번째 구성의 장점을 입력하세요.'] },
+    'service-bar': { title: '내일투어 스페셜 서비스', body: '예약 고객께 기본 제공되는 핵심 케어입니다.', items: ['항공·호텔 조율로 쉽고 빠른 여행 준비 | 개별 맞춤 케어', '지역별 교통패스·입장권 추천 및 예약대행 | 패스·티켓 대행', '여행자보험 가입 및 현지 비상연락망 지원 | 안심 여행 케어'] },
   }
   defaults.timeline = { ...placeholder, items: ['00:00 | 일정 제목 | 일정 설명을 입력하세요.'] }
   const base = defaults[type]
   const section: Section = {
-    id: crypto.randomUUID(), type, eyebrow: base.eyebrow, title: base.title,
+    id: crypto.randomUUID(), type, title: base.title,
     body: base.body,
     items: [...base.items],
     tableHeaders: type === 'table' ? ['구분', '내용'] : [],
@@ -133,6 +133,14 @@ export function makeSection(type: SectionType): Section {
 }
 
 const clamp = (value: number, minimum: number, maximum: number) => Math.max(minimum, Math.min(maximum, value))
+
+export function withoutCategoryLabel<T extends object>(value: T): T {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('콘텐츠는 JSON 객체여야 합니다.')
+  const clean = { ...value } as T & { eyebrow?: unknown; categoryLabel?: unknown }
+  delete clean.eyebrow
+  delete clean.categoryLabel
+  return clean
+}
 
 export function createLayoutBoxes(layout: Section['contentLayout'], mediaIds: string[]): BlockBox[] {
   const horizontal = layout === 'media-left' || layout === 'media-right'
@@ -162,7 +170,7 @@ export function normalizeLayoutBoxes(section: Pick<Section, 'contentLayout' | 'm
   return [...normalized, ...extras].map((box, index) => {
     const columnSpan = clamp(Number(box.columnSpan) || 4, 2, 12)
     const rowSpan = clamp(Number(box.rowSpan) || 3, 2, 18)
-    return { ...box, column: clamp(Number(box.column) || 1, 1, 13 - columnSpan), row: clamp(Number(box.row) || 1, 1, 80), columnSpan, rowSpan, zIndex: Number.isFinite(box.zIndex) ? clamp(box.zIndex, 1, 99) : index + 1 }
+    return { ...withoutCategoryLabel(box), column: clamp(Number(box.column) || 1, 1, 13 - columnSpan), row: clamp(Number(box.row) || 1, 1, 80), columnSpan, rowSpan, zIndex: Number.isFinite(box.zIndex) ? clamp(box.zIndex, 1, 99) : index + 1 }
   })
 }
 
@@ -183,7 +191,8 @@ export function normalizeProject(project: Project): Project {
   const current = migrateProject(project).project
   const id = current.id || crypto.randomUUID()
   const name = current.name || '내일스패셜 기획안'
-  const sections: Section[] = (current.sections || []).map(section => {
+  const sections: Section[] = (current.sections || []).map(rawSection => {
+    const section = withoutCategoryLabel(rawSection)
     const preserved = section.extensions?.unsupportedBlock
     const rawType = preserved?.type || String(section.type)
     const unsupported = !isKnownSectionType(rawType) && !isLegacySectionType(rawType)
@@ -192,7 +201,6 @@ export function normalizeProject(project: Project): Project {
     const iconCards = (section.iconCards || []).map(card => ({ id: card.id || crypto.randomUUID(), icon: card.icon || 'sparkles', title: card.title || '', body: card.body || '', tone: card.tone || 'teal' }))
     const contentLayout = section.contentLayout || 'text-top'
     const background: Section['background'] = section.background === 'mist' || section.background === 'teal' || section.background === 'sand' ? section.background : 'white'
-    const eyebrow = unsupported ? 'UNSUPPORTED BLOCK' : section.eyebrow === 'NAEIL SPECIAL' ? 'Category Label' : section.eyebrow
     const title = unsupported ? `지원하지 않는 블록: ${rawType}` : [SECTION_LABELS.text, SECTION_LABELS.image, SECTION_LABELS.list, SECTION_LABELS.table, SECTION_LABELS['icon-card'], SECTION_LABELS.offer].includes(section.title) ? '제목' : section.title
     const body = unsupported ? '현재 앱에서는 이 블록을 편집할 수 없습니다. 저장 시 원본 데이터는 보존됩니다.' : section.body === '고객이 한눈에 이해할 수 있도록 핵심 내용을 입력하세요.' ? '본문' : section.body
     const rawItems = section.items || []
@@ -210,7 +218,7 @@ export function normalizeProject(project: Project): Project {
     const extensions = unsupported
       ? { ...section.extensions, unsupportedBlock: preserved || { type: rawType, data: section as unknown as Record<string, unknown> } }
       : section.extensions
-    return { ...section, type, eyebrow, title, body, items, mediaIds, menuItemReversed, timelineDayStarts, timelineHeroVisible, listStyle: section.listStyle || (type === 'offer' ? 'offer' : 'list'), background, mediaLayout: section.mediaLayout || 'auto', contentLayout, layoutBoxes: normalizeLayoutBoxes({ contentLayout, mediaIds, layoutBoxes: section.layoutBoxes, removedLayoutBoxIds: section.removedLayoutBoxIds }), tableHeaders: type === 'table' ? Array.from({ length: columnCount }, (_, index) => section.tableHeaders?.[index] || (index === 0 ? '구분' : index === 1 ? '내용' : `항목 ${index + 1}`)) : section.tableHeaders || [], tableRows: type === 'table' ? (section.tableRows || []).map(row => Array.from({ length: columnCount }, (_, index) => row[index] || '')) : section.tableRows || [], iconCards: type === 'icon-card' ? iconCards : section.iconCards || [], extensions }
+    return { ...section, type, title, body, items, mediaIds, menuItemReversed, timelineDayStarts, timelineHeroVisible, listStyle: section.listStyle || (type === 'offer' ? 'offer' : 'list'), background, mediaLayout: section.mediaLayout || 'auto', contentLayout, layoutBoxes: normalizeLayoutBoxes({ contentLayout, mediaIds, layoutBoxes: section.layoutBoxes, removedLayoutBoxIds: section.removedLayoutBoxIds }), tableHeaders: type === 'table' ? Array.from({ length: columnCount }, (_, index) => section.tableHeaders?.[index] || (index === 0 ? '구분' : index === 1 ? '내용' : `항목 ${index + 1}`)) : section.tableHeaders || [], tableRows: type === 'table' ? (section.tableRows || []).map(row => Array.from({ length: columnCount }, (_, index) => row[index] || '')) : section.tableRows || [], iconCards: type === 'icon-card' ? iconCards : section.iconCards || [], extensions }
   })
   const defaultCampaign = createCampaignData(id, name)
   const rawCampaign = current.campaign || defaultCampaign
@@ -221,7 +229,10 @@ export function normalizeProject(project: Project): Project {
     tracking: { ...defaultCampaign.tracking, ...(rawCampaign.tracking || {}) },
     performance: { ...defaultCampaign.performance, ...(rawCampaign.performance || {}) },
   }
-  return { ...current, id, name, campaign, sections, contentGroups: normalizeContentGroups(current.contentGroups, sections), assets: current.assets || [] }
+  const workspace = current.briefWorkspace
+  const brief = workspace?.brief
+  const briefWorkspace = workspace && { ...workspace, ...(brief ? { brief: { ...brief, common: withoutCategoryLabel(brief.common), blocks: brief.blocks.map(block => ({ ...withoutCategoryLabel(block), ...(block.layoutBoxes ? { layoutBoxes: block.layoutBoxes.map(withoutCategoryLabel) } : {}) })) } } : {}) }
+  return { ...current, id, name, campaign, sections, briefWorkspace, contentGroups: normalizeContentGroups(current.contentGroups, sections), assets: current.assets || [] }
 }
 
 export function isLegacyBaliSeed(project: Project): boolean {
@@ -249,16 +260,13 @@ export function createSeedProject(): Project {
 export function createSampleProject(): Project {
   const project = createSeedProject()
   const text = makeSection('text')
-  text.eyebrow = 'SAMPLE PROJECT'
   text.title = '괌 가족 휴양 4박 5일'
   text.body = '샘플 문구를 더블클릭해 바로 수정해 보세요. 여행지와 상품 성격에 맞춰 블록 순서를 바꾸고, 필요한 블록만 남기면 됩니다.'
   const image = makeSection('image')
-  image.eyebrow = 'RESORT HIGHLIGHT'
   image.title = '바다 가까이에서 보내는 여유로운 하루'
   image.body = '가운데 이미지 박스를 클릭하면 왼쪽 이미지 탭으로 이동합니다. 라이브러리의 사진을 눌러 이 자리에 연결해 보세요.'
   image.layoutBoxes = createLayoutBoxes('text-top', image.mediaIds)
   const list = makeSection('list')
-  list.eyebrow = 'WHY THIS TRIP'
   list.title = '가족 여행에 맞춘 핵심 포인트'
   list.body = '목록을 선택한 뒤 가운데 항목을 눌러 내용을 편집합니다.'
   list.items = ['공항 왕복 이동으로 도착부터 편안하게', '리조트 중심 일정으로 여유 있게', '가족 구성에 맞춰 선택 가능한 체험']
@@ -278,18 +286,15 @@ export function createTemplateProject(templateId: TemplatePresetId): Project {
   const project = createSeedProject()
   if (templateId === 'theme-multi-city') {
     const hero = makeSection('image')
-    hero.eyebrow = 'EUROPEAN BEER TOURS'
     hero.title = '유럽 맥주 기행 테마 우리만'
     hero.body = '체코·독일·벨기에·네덜란드 브루어리와 소도시를 전용 동선으로 연결합니다.'
     hero.mediaLayout = 'mosaic-left'
     hero.layoutBoxes = createLayoutBoxes('text-top', hero.mediaIds)
     const route = makeSection('route-bar')
-    route.eyebrow = 'GOLDEN ROUTE'
     route.title = '한눈에 보는 황금 동선'
     route.body = '도시간 고속열차와 전용 픽업으로 이동 피로를 줄였습니다.'
     route.items = ['암스테르담', '브뤼셀', '플젠', '프라하']
     const benefits = makeSection('caption-grid')
-    benefits.eyebrow = 'SPECIAL BENEFITS'
     benefits.title = '우리만 상품 특전'
     benefits.body = '핵심 양조장 투어와 도시간 교통편을 모두 포함했습니다.'
     benefits.background = 'sand'
@@ -299,17 +304,14 @@ export function createTemplateProject(templateId: TemplatePresetId): Project {
   }
   if (templateId === 'honeymoon-pick') {
     const cover = makeSection('hero-cover')
-    cover.eyebrow = 'HONEYMOON SPECIAL'
     cover.title = '발리 프라이빗 허니문'
     cover.body = '럭셔리 풀빌라 휴양과 원데이 액티비티, 데일리 마사지까지 둘만의 속도로 고르는 맞춤 허니문'
     cover.items = ['NO쇼핑 · NO옵션', '단독 가이드', '풀빌라 4박']
     const pick = makeSection('option-grid')
-    pick.eyebrow = 'HONEYMOON BENEFIT 01'
     pick.title = '원데이 프로그램 택 1'
     pick.body = '2일차·3일차 원하는 체험을 각각 1개씩 자유롭게 선택할 수 있습니다.'
     pick.items = ['발리스윙', '아융강 래프팅', '우붓 투어', '허니문 스냅']
     const common = makeSection('caption-grid')
-    common.eyebrow = 'COMMON BENEFITS'
     common.title = '허니문 예약 시 공통 특전'
     common.body = '두 분의 휴식을 완성하는 기본 포함 혜택입니다.'
     common.background = 'sand'
@@ -319,34 +321,28 @@ export function createTemplateProject(templateId: TemplatePresetId): Project {
   }
   if (templateId === 'kids-vs') {
     const vs = makeSection('vs-compare')
-    vs.eyebrow = 'FAMILY THEME'
     vs.title = '우리 아이 EQ & IQ 올려보자!'
     vs.body = '감성 체험과 역사 배움을 균형 있게 담아낸 가족 맞춤 일정입니다.'
     vs.background = 'mist'
     vs.items = ['감성 · 자연 체험 | EQ 여행이란? | 아이와 함께 새로운 자연과 문화를 몸으로 체험하며 감수성을 넓히는 여행', '역사 · 배움 체험 | IQ 여행이란? | 박물관·역사 현장을 직접 보고 만들며 호기심과 시야를 키우는 배움 여행']
     const spots = makeSection('caption-grid')
-    spots.eyebrow = 'EXPERIENCE SPOTS'
     spots.title = '주제별 핵심 체험 스팟'
     spots.body = '아이 눈높이에 맞춘 대표 체험지를 담았습니다.'
     spots.items = ['유니버셜 스튜디오 | 가족 모두가 즐기는 대표 테마파크', '오사카성 & 컵라면 박물관 | 역사 탐방과 나만의 컵라면 만들기']
     const svc = makeSection('service-bar')
-    svc.eyebrow = 'SPECIAL SERVICE'
     svc.title = '내일투어 스페셜 서비스'
     svc.body = '가족 여행 준비부터 현지 케어까지 함께합니다.'
     return { ...project, name: '키즈·가족 비교(VS) 기획안', category: '우리만', layout: 'theme-package', page: { title: '우리 아이 EQ & IQ 가족여행', subtitle: '체험과 배움이 함께하는 우리만', destination: '오사카', internalMemo: '' }, campaign: createCampaignData(project.id, '키즈·가족 비교(VS) 기획안'), sections: [vs, spots, svc] }
   }
   const cover = makeSection('hero-cover')
-  cover.eyebrow = 'INTERNATIONAL PARK GOLF'
   cover.title = '중국 위해 유공도 국제 파크골프 대회'
   cover.body = '해안 도시 위해에서 펼쳐지는 36홀 개인 타수 경기와 휴양 일정'
   cover.items = ['주관 · 위해시 체육국', '기간 · 4월 14일~16일', '방식 · 36홀 스트로크']
   const chk = makeSection('list')
-  chk.eyebrow = 'GOLF GMT CHECKPOINT'
   chk.title = '골프 GMT 체크포인트'
   chk.body = '대회 참가와 이동·숙박 핵심 조건을 한눈에 확인하세요.'
   chk.items = ['인천 ↔ 위해 왕복 교통 및 대회 참가권·연습 라운딩 포함', '시내 준5성급 호텔 숙박 + 전 일정 식사 및 시상 만찬 제공', '노팁 · 노옵션 · 노쇼핑, 전용 차량 및 한국어 가이드 동행']
   const prize = makeSection('table')
-  prize.eyebrow = 'AWARDS & PRIZES'
   prize.title = '시상 내역 및 상금'
   prize.body = '남녀부 부문별 상금과 푸짐한 경품이 준비되어 있습니다.'
   prize.background = 'sand'
@@ -358,7 +354,6 @@ export function createTemplateProject(templateId: TemplatePresetId): Project {
     ['4', '행운상 추첨', '파크골프채·볼 파우치 등', '파크골프채·볼 파우치 등'],
   ]
   const info = makeSection('service-bar')
-  info.eyebrow = 'GUIDE & NOTICE'
   info.title = '참가 및 유의 안내'
   info.body = '대회 규정과 취소 규정을 미리 확인해 주세요.'
   info.items = ['대회 규정집 및 홀별 코스맵 출발 전 제공 | 사전 자료 안내', '현지 기상 상황에 따라 티오프 시간 조정 가능 | 대회 운영 규정']

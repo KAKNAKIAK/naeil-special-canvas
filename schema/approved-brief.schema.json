@@ -24,8 +24,8 @@
     },
     "common": {
       "type": "object",
-      "required": ["categoryLabel", "title", "body"],
-      "properties": { "categoryLabel": { "type": "string" }, "title": { "type": "string" }, "body": { "type": "string" } },
+      "required": ["title", "body"],
+      "properties": { "title": { "type": "string" }, "body": { "type": "string" } },
       "additionalProperties": true
     },
     "blockOrder": { "type": "array", "minItems": 1, "items": { "type": "string" } },

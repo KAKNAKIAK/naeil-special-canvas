@@ -52,7 +52,7 @@ export function sectionPatch(value: unknown): Partial<Section> {
   }
   for (const [key, item] of Object.entries(patch)) {
     if (enums[key]) choice(item, enums[key])
-    else if (['eyebrow', 'title', 'body', 'note'].includes(key)) text(item)
+    else if (['title', 'body', 'note'].includes(key)) text(item)
     else if (['items', 'mediaIds', 'tableHeaders'].includes(key)) {
       if (!stringList(item)) throw new Error(`${key}는 문자열 배열이어야 합니다.`)
     } else if (key === 'tableRows') {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { approveBrief, buildDraftBrief, buildProjectFromApprovedBrief, createBriefWorkspace } from './brief'
-import { createSeedProject } from './catalog'
+import { createSeedProject, normalizeProject } from './catalog'
 import { projectLoadJson } from './exporters'
 
 function addAssets(project: ReturnType<typeof createSeedProject>, count: number) {
@@ -11,6 +11,17 @@ function addAssets(project: ReturnType<typeof createSeedProject>, count: number)
 }
 
 describe('brief studio flow', () => {
+  it('drops legacy brief labels on load and approved project generation', () => {
+    const project = createSeedProject()
+    const workspace = createBriefWorkspace()
+    const brief = buildDraftBrief(project, workspace)
+    Object.assign(brief.common, { categoryLabel: 'LEGACY COMMON' })
+    Object.assign(brief.blocks[0], { categoryLabel: 'LEGACY BLOCK', eyebrow: 'LEGACY EYEBROW' })
+    project.briefWorkspace = { ...workspace, brief }
+    expect(JSON.stringify(normalizeProject(project).briefWorkspace)).not.toMatch(/"(?:eyebrow|categoryLabel)"/)
+    expect(JSON.stringify(buildProjectFromApprovedBrief(project, approveBrief(brief)))).not.toMatch(/"(?:eyebrow|categoryLabel)"/)
+    expect(brief.common).toHaveProperty('categoryLabel', 'LEGACY COMMON')
+  })
   it('keeps raw input separate while producing a reviewable draft brief', () => {
     const project = createSeedProject()
     project.name = '괌 가족여행 4박 5일'
